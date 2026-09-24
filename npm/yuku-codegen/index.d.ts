@@ -105,21 +105,3 @@ export interface GenerateResult {
 
 /** Renders the AST back to source code. */
 export function generate(program: Program, options?: GenerateOptions): GenerateResult;
-
-/** @deprecated Options type of the deprecated entry points. */
-export type CodegenOptions = GenerateOptions & {
-  /** @deprecated Use `sourceMap`. */
-  sourceMaps?: SourceMapOptions;
-};
-
-/** @deprecated Use {@link GenerateResult}. */
-export type CodegenResult = GenerateResult;
-
-/** @deprecated Use {@link generate}. */
-export function print(program: Program, options?: CodegenOptions): GenerateResult;
-
-/** @deprecated Use `generate(program, { strip: true, ... })`. */
-export function strip(program: Program, options?: CodegenOptions): GenerateResult;
-
-/** @deprecated Use `generate(program, { minify: true, ... })`. */
-export function minify(program: Program, options?: CodegenOptions): GenerateResult;

@@ -44,18 +44,3 @@ export function generate(program, options = {}) {
   free(ptr, 4 + len);
   return code;
 }
-
-/** @deprecated Use `generate(program)`. */
-export function print(program) {
-  return generate(program);
-}
-
-/** @deprecated Use `generate(program, { strip: true })`. */
-export function strip(program) {
-  return generate(program, { strip: true });
-}
-
-/** @deprecated Use `generate(program, { minify: true })`. */
-export function minify(program) {
-  return generate(program, { minify: true });
-}

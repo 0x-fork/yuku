@@ -1,15 +1,11 @@
 import type {
   Comment,
   Diagnostic,
-  Node,
-  NodeOfType,
-  NodeType,
   Program,
   SourceLang,
   SourceType,
   TokenKindMap,
   TokenList,
-  WalkContext,
 } from "@yuku-toolchain/types";
 
 export * from "@yuku-toolchain/types";
@@ -82,32 +78,6 @@ export const TokenKind: TokenKindMap;
 /** The kind of a token, one of the values of `TokenKind`. */
 export type TokenKind = TokenKindMap[keyof TokenKindMap];
 
-// Deprecated walking surface. Walking moved to the yuku-ast package,
-// these delegate there and will be removed in an upcoming minor version.
-
-/** @deprecated Import `WalkHandler` from the yuku-ast package instead. */
-type WalkHandler<T extends Node = Node, S = unknown> = (node: T, ctx: WalkContext<T, S>) => void;
-
-/** @deprecated Import `WalkHooks` from the yuku-ast package instead. */
-interface WalkHooks<T extends Node = Node, S = unknown> {
-  enter?: WalkHandler<T, S>;
-  leave?: WalkHandler<T, S>;
-}
-
-/** @deprecated Import `Visitors` from the yuku-ast package instead. */
-type Visitors<S = unknown> = {
-  [K in NodeType]?: WalkHandler<NodeOfType<K>, S> | WalkHooks<NodeOfType<K>, S>;
-} & {
-  enter?: WalkHandler<Node, S>;
-  leave?: WalkHandler<Node, S>;
-};
-
-/**
- * @deprecated Walking moved to the yuku-ast package. Install yuku-ast
- * and import `walk` from there. Removed in an upcoming minor version.
- */
-export function walk<T extends Node, S = unknown>(root: T, visitors: Visitors<S>, state?: S): T;
-
 /**
  * Resolves a {@link SourceLang} from a file path's extension.
  *
@@ -127,4 +97,4 @@ export function langFromPath(path: string): SourceLang;
  */
 export function sourceTypeFromPath(path: string): SourceType;
 
-export type { ParseOptions, ParseResult, Visitors, WalkHandler, WalkHooks };
+export type { ParseOptions, ParseResult };

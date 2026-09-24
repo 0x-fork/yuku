@@ -1,4 +1,3 @@
-import { walk as astWalk } from "yuku-ast";
 import binding from "./binding.js";
 import { decode } from "./decode.js";
 
@@ -21,22 +20,4 @@ export function langFromPath(path) {
 
 export function sourceTypeFromPath(path) {
   return path.endsWith(".cjs") || path.endsWith(".cts") ? "commonjs" : "module";
-}
-
-export { WalkContext } from "yuku-ast";
-
-let deprecationWarned = false;
-function warnWalkMoved(name) {
-  if (deprecationWarned) return;
-  deprecationWarned = true;
-  console.warn(
-    `[yuku-parser] ${name}() has moved to the yuku-ast package. ` +
-      `Install yuku-ast and update the import to: import { ${name} } from "yuku-ast". ` +
-      `This re-export will be removed in an upcoming minor version.`,
-  );
-}
-
-export function walk(root, visitors, state) {
-  warnWalkMoved("walk");
-  return astWalk(root, visitors, state);
 }

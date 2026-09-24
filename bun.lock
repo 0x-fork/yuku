@@ -184,7 +184,6 @@
       "version": "0.10.2",
       "dependencies": {
         "@yuku-toolchain/types": "workspace:^",
-        "yuku-ast": "workspace:^",
       },
       "optionalDependencies": {
         "@yuku-parser/binding-android-arm64": "0.10.2",
@@ -206,7 +205,6 @@
       "version": "0.10.2",
       "dependencies": {
         "@yuku-toolchain/types": "workspace:^",
-        "yuku-ast": "workspace:^",
       },
     },
     "npm/yuku-parser/@yuku-parser/binding-android-arm64": {

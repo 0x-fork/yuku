@@ -127,7 +127,7 @@ Tokens are as the parser resolved them: a regex is one `RegexLiteral`, and the `
 
 ## Walking the AST
 
-The AST is standard ESTree, and [`yuku-ast`](https://www.npmjs.com/package/yuku-ast) walks it with typed visitors, alias groups, in-place mutation, and syntactic utilities. `walk` imported from this package still works as a deprecated re-export and will be removed in the next major version:
+The AST is standard ESTree, and [`yuku-ast`](https://www.npmjs.com/package/yuku-ast) walks it with typed visitors, alias groups, in-place mutation, and syntactic utilities.:
 
 ```ts
 import { parse } from "yuku-parser";

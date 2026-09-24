@@ -26,10 +26,3 @@ export interface GenerateOptions {
 
 /** Renders the AST back to source code. */
 export function generate(program: any, options?: GenerateOptions): string;
-
-/** @deprecated Use {@link generate}. */
-export function print(program: any): string;
-/** @deprecated Use `generate(program, { strip: true })`. */
-export function strip(program: any): string;
-/** @deprecated Use `generate(program, { minify: true })`. */
-export function minify(program: any): string;
