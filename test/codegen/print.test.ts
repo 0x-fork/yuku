@@ -170,3 +170,37 @@ test("compact output keeps a type argument closer apart from `>` and `=` operato
     gen(`f<T> == x;\nf<T> >= x;\nf<T> >>> x;\na.b<T> === c;`, { format: "compact" }),
   ).toMatchInlineSnapshot(`"f<T> ==x;f<T> >=x;f<T> >>>x;a.b<T> ===c"`);
 });
+
+test("each switch case statement starts on its own line, and compact keeps them inline", () => {
+  const source = [
+    "switch (x) {",
+    "  case 0: a();",
+    "  case 1: b(); break;",
+    "  case 2:",
+    "  case 3: { c(); }",
+    "  default: switch (y) { case 4: d(); }",
+    "}",
+  ].join("\n");
+  expect(gen(source, {}, "input.js")).toMatchInlineSnapshot(`
+    "switch (x) {
+    case 0:
+      a();
+    case 1:
+      b();
+      break;
+    case 2:
+    case 3:
+      {
+        c();
+      }
+    default:
+      switch (y) {
+      case 4:
+        d();
+      }
+    }"
+  `);
+  expect(gen(source, { format: "compact" }, "input.js")).toMatchInlineSnapshot(
+    `"switch(x){case 0:a();case 1:b();break;case 2:case 3:{c()}default:switch(y){case 4:d()}}"`,
+  );
+});

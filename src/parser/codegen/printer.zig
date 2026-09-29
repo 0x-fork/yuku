@@ -770,18 +770,24 @@ const Printer = struct {
         self.in_prologue = false;
     }
 
+    fn printIndentedStmtList(self: *Self, items: IndexRange, prologue: bool) Error!bool {
+        std.debug.assert(items.len > 0);
+        const cur = self.cursor();
+        self.indent_depth += 1;
+        defer self.indent_depth -= 1;
+        try self.newline();
+        const after_indent = self.mark();
+        try self.printStmtList(items, prologue);
+        if (self.mark() > after_indent) return true;
+        std.debug.assert(self.mark() == after_indent);
+        self.restore(cur);
+        return false;
+    }
+
     fn printBlock(self: *Self, items: IndexRange, prologue: bool) Error!void {
         try self.writeByte('{');
-        if (self.tree.extra(items).len > 0) {
-            const cur = self.cursor();
-            self.indent_depth += 1;
-            try self.newline();
-            const after_indent = self.mark();
-            try self.printStmtList(items, prologue);
-            self.indent_depth -= 1;
-            if (self.mark() == after_indent) {
-                self.restore(cur);
-            } else {
+        if (items.len > 0) {
+            if (try self.printIndentedStmtList(items, prologue)) {
                 self.pending_semi = false;
                 try self.newline();
             }
@@ -1055,10 +1061,8 @@ const Printer = struct {
         } else {
             try self.writeStr("default:");
         }
-        if (self.tree.extra(c.consequent).len == 0) return;
-        self.indent_depth += 1;
-        defer self.indent_depth -= 1;
-        try self.printStmtList(c.consequent, false);
+        if (c.consequent.len == 0) return;
+        _ = try self.printIndentedStmtList(c.consequent, false);
     }
 
     fn emit_try_statement(self: *Self, s: *const ast.TryStatement) Error!void {
