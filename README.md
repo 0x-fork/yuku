@@ -108,10 +108,18 @@ Scopes, symbols, resolved references, closures, and cross-file module linking, c
 ## Performance
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-native/refs/heads/main/charts/typescript.png" alt="Parsing typescript.js (7.8 MB) · macOS (ARM), Apple M3, 16 GB · native benchmark comparing Yuku, Oxc, and other Zig/Rust parsers">
+  <img src="https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-native/refs/heads/main/charts/typescript.png" alt="Bar chart of Yuku, Oxc, and SWC native parse throughput and median time for typescript.js">
+  <br>
+  <sub>Native parse of <a href="https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/typescript.js">typescript.js</a> (7.8 MB) · throughput and median time over 300 runs · Apple M3</sub>
 </p>
 
-- [Native benchmark (Zig/Rust)](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-native) - faster than Oxc and SWC
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/typescript.png" alt="Bar chart of Yuku, Acorn, Babel, Oxc, and SWC npm parse throughput and median time for typescript.js">
+  <br>
+  <sub>npm parse of <a href="https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/typescript.js">typescript.js</a> (7.8 MB) on Bun · throughput and median time over 3 runs · Apple M3</sub>
+</p>
+
+- [Native benchmark (Zig/Rust)](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-native) - up to 1.5x faster than Oxc, 2.2-2.6x faster than SWC
 - [npm benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js) - 3-10x faster than alternatives
 
 ## Testing
