@@ -1,6 +1,6 @@
 {
   "name": "yuku-analyzer",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Semantic analysis for JavaScript and TypeScript: scopes, symbols, resolved references, closures, and cross-file module linking",
   "license": "MIT",
   "repository": {
