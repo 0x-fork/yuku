@@ -3,7 +3,6 @@ const util = @import("util");
 
 const Allocator = std.mem.Allocator;
 
-/// Source Map V3 output.
 pub const SourceMap = struct {
     version: u8 = 3,
     file: ?[]const u8 = null,
@@ -20,7 +19,6 @@ pub const SourceMap = struct {
     }
 };
 
-/// Configures source map generation.
 pub const Options = struct {
     /// The original source text. Required to emit a map.
     source: ?[]const u8 = null,
@@ -32,14 +30,11 @@ pub const Options = struct {
     source_root: ?[]const u8 = null,
     /// When set, embedded as the single entry of `sourcesContent`.
     sources_content: ?[]const u8 = null,
-    /// Whether spans count UTF-16 code units instead of UTF-8 bytes.
-    utf16_offsets: bool = false,
 };
 
 /// A zero-based source position, with `col` counted in UTF-16 code units.
 pub const LineCol = struct { line: u32, col: u32 };
 
-/// A single mapping from a generated position to its original position.
 pub const Segment = struct {
     gen_line: u32,
     gen_col: u32,
@@ -47,7 +42,6 @@ pub const Segment = struct {
     orig_col: u32,
 };
 
-/// Source map generation state for one codegen run.
 pub const State = struct {
     options: Options,
     source: []const u8,
@@ -56,7 +50,6 @@ pub const State = struct {
     gen_line: u32 = 0,
     gen_col: u32 = 0,
 
-    // held until a different generated position arrives so a deeper node can overwrite it
     pending: Segment = undefined,
     has_pending: bool = false,
 
@@ -66,20 +59,6 @@ pub const State = struct {
     enc_gen_line: i32 = 0,
     first_in_line: bool = true,
 
-    /// State needed to undo a speculative emit.
-    pub const Snapshot = struct {
-        out_len: u32,
-        gen_line: u32,
-        gen_col: u32,
-        pending: Segment,
-        has_pending: bool,
-        prev_gen_col: i32,
-        prev_orig_line: i32,
-        prev_orig_col: i32,
-        enc_gen_line: i32,
-        first_in_line: bool,
-    };
-
     pub fn init(options: Options) State {
         return .{ .options = options, .source = options.source orelse "" };
     }
@@ -88,12 +67,10 @@ pub const State = struct {
         self.out.deinit(allocator);
     }
 
-    /// Resolves a source offset to a zero-based `(line, col)` pair.
     pub fn resolve(self: *State, offset: u32) LineCol {
-        return self.cursor.resolve(self.source, offset, self.options.utf16_offsets);
+        return self.cursor.resolve(self.source, offset);
     }
 
-    /// Advances the generated position over `bytes` just written.
     pub fn advance(self: *State, bytes: []const u8) void {
         if (isPlainAscii(bytes)) {
             self.gen_col += @intCast(bytes.len);
@@ -138,17 +115,19 @@ pub const State = struct {
         return true;
     }
 
-    /// Records a mapping at the current generated position. A later record at
-    /// the same generated position replaces this one.
+    /// Records a mapping `col_offset` columns past the generated position. A later record at
+    /// the same position replaces it.
     pub fn record(
         self: *State,
         allocator: Allocator,
         orig_line: u32,
         orig_col: u32,
+        col_offset: u32,
     ) Allocator.Error!void {
+        const gen_col = self.gen_col + col_offset;
         if (self.has_pending and
             self.pending.gen_line == self.gen_line and
-            self.pending.gen_col == self.gen_col)
+            self.pending.gen_col == gen_col)
         {
             self.pending.orig_line = orig_line;
             self.pending.orig_col = orig_col;
@@ -157,7 +136,7 @@ pub const State = struct {
         if (self.has_pending) try self.flush(allocator);
         self.pending = .{
             .gen_line = self.gen_line,
-            .gen_col = self.gen_col,
+            .gen_col = gen_col,
             .orig_line = orig_line,
             .orig_col = orig_col,
         };
@@ -195,7 +174,7 @@ pub const State = struct {
         const gen_col: i32 = @intCast(seg.gen_col);
         dst = writeVlq(dst, gen_col - self.prev_gen_col);
         self.prev_gen_col = gen_col;
-        // single source, so the source index delta is always zero
+        // the source index delta, always zero with one source
         dst[0] = 'A';
         dst += 1;
         const orig_line: i32 = @intCast(seg.orig_line);
@@ -208,36 +187,6 @@ pub const State = struct {
         self.out.items.len += @intFromPtr(dst) - @intFromPtr(base);
     }
 
-    pub fn snapshot(self: *const State) Snapshot {
-        return .{
-            .out_len = @intCast(self.out.items.len),
-            .gen_line = self.gen_line,
-            .gen_col = self.gen_col,
-            .pending = self.pending,
-            .has_pending = self.has_pending,
-            .prev_gen_col = self.prev_gen_col,
-            .prev_orig_line = self.prev_orig_line,
-            .prev_orig_col = self.prev_orig_col,
-            .enc_gen_line = self.enc_gen_line,
-            .first_in_line = self.first_in_line,
-        };
-    }
-
-    pub fn restore(self: *State, s: Snapshot) void {
-        std.debug.assert(s.out_len <= self.out.items.len);
-        self.out.shrinkRetainingCapacity(s.out_len);
-        self.gen_line = s.gen_line;
-        self.gen_col = s.gen_col;
-        self.pending = s.pending;
-        self.has_pending = s.has_pending;
-        self.prev_gen_col = s.prev_gen_col;
-        self.prev_orig_line = s.prev_orig_line;
-        self.prev_orig_col = s.prev_orig_col;
-        self.enc_gen_line = s.enc_gen_line;
-        self.first_in_line = s.first_in_line;
-    }
-
-    /// Finalizes the map. Free with `SourceMap.deinit`.
     pub fn build(self: *State, allocator: Allocator) Allocator.Error!SourceMap {
         if (self.has_pending) {
             try self.flush(allocator);
@@ -267,22 +216,17 @@ pub const State = struct {
     }
 };
 
-/// Maps UTF-8 or UTF-16 offsets in a UTF-8 source to zero-based `(line, col)`,
-/// scanning incrementally from the last position.
+/// Maps byte offsets in a UTF-8 source to zero-based `(line, col)`, with `col` in UTF-16
+/// code units, scanning incrementally from the last position.
 pub const SourceCursor = struct {
     byte: u32 = 0,
     utf16: u32 = 0,
     line: u32 = 0,
     line_start_utf16: u32 = 0,
 
-    pub fn resolve(
-        self: *SourceCursor,
-        source: []const u8,
-        target: u32,
-        utf16: bool,
-    ) LineCol {
-        if (target >= self.offset(utf16)) {
-            while (self.offset(utf16) < target and self.byte < source.len) {
+    pub fn resolve(self: *SourceCursor, source: []const u8, target: u32) LineCol {
+        if (target >= self.byte) {
+            while (self.byte < target and self.byte < source.len) {
                 const brk = util.Utf.lineBreakLen(source, self.byte);
                 if (brk > 0) {
                     self.line += 1;
@@ -296,12 +240,12 @@ pub const SourceCursor = struct {
                 }
             }
         } else {
-            while (self.offset(utf16) > target) {
+            while (self.byte > target) {
                 self.byte -= 1;
                 while (self.byte > 0 and isContinuation(source[self.byte])) self.byte -= 1;
                 const lead = source[self.byte];
                 self.utf16 -= utf16Width(std.unicode.utf8ByteSequenceLength(lead) catch 1);
-                // count a crlf once, its lf belongs to the preceding cr
+                // a crlf counts once
                 const is_break = if (lead == '\n')
                     self.byte == 0 or source[self.byte - 1] != '\r'
                 else
@@ -311,10 +255,6 @@ pub const SourceCursor = struct {
             self.line_start_utf16 = self.lineStart(source);
         }
         return .{ .line = self.line, .col = self.utf16 - self.line_start_utf16 };
-    }
-
-    inline fn offset(self: *const SourceCursor, utf16: bool) u32 {
-        return if (utf16) self.utf16 else self.byte;
     }
 
     fn lineStart(self: *const SourceCursor, source: []const u8) u32 {
@@ -335,7 +275,7 @@ inline fn isContinuation(byte: u8) bool {
     return (byte & 0xC0) == 0x80;
 }
 
-// a 4-byte utf-8 code point is a utf-16 surrogate pair, all else one unit
+// a 4-byte utf-8 code point is a utf-16 surrogate pair
 inline fn utf16Width(utf8_len: u8) u32 {
     return if (utf8_len == 4) 2 else 1;
 }
@@ -355,10 +295,10 @@ inline fn writeVlq(dst: [*]u8, v: i32) [*]u8 {
     }
 }
 
-test "a cursor resolves byte and utf-16 offsets past non-ascii text" {
+test "a cursor resolves byte offsets past non-ascii text to utf-16 columns" {
     const source = "\"日😀\"; foo;";
-    var bytes: SourceCursor = .{};
-    try std.testing.expectEqual(LineCol{ .line = 0, .col = 7 }, bytes.resolve(source, 11, false));
-    var units: SourceCursor = .{};
-    try std.testing.expectEqual(LineCol{ .line = 0, .col = 7 }, units.resolve(source, 7, true));
+    var cursor: SourceCursor = .{};
+    try std.testing.expectEqual(LineCol{ .line = 0, .col = 7 }, cursor.resolve(source, 11));
+    try std.testing.expectEqual(LineCol{ .line = 0, .col = 0 }, cursor.resolve(source, 0));
+    try std.testing.expectEqual(LineCol{ .line = 0, .col = 7 }, cursor.resolve(source, 11));
 }

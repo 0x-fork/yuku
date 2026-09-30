@@ -10,10 +10,10 @@ import type {
   Program,
   SourceLang,
   SourceType,
-  TokenKindMap,
   TokenList,
-  WalkContext as BaseWalkContext,
+  WalkContext,
 } from "@yuku-toolchain/types";
+import type { langFromPath, sourceTypeFromPath } from "yuku-engine";
 
 /** A diagnostic produced by {@link Analyzer.link}. */
 interface LinkDiagnostic {
@@ -25,7 +25,6 @@ interface LinkDiagnostic {
   end: number;
 }
 
-/** Options for {@link Analyzer.addFile}. */
 interface AddFileOptions {
   /**
    * Language variant. Defaults to the file extension via
@@ -55,7 +54,6 @@ interface AddFileOptions {
   tokens?: boolean;
 }
 
-/** Options for {@link Analyzer}. */
 interface AnalyzerOptions {
   /**
    * Host module resolution. Maps an import specifier and the importing
@@ -65,11 +63,6 @@ interface AnalyzerOptions {
    */
   resolve?: (specifier: string, importerPath: string) => string | null;
 }
-
-/** Every token kind by name, `tokens.kind(i) === TokenKind.Arrow`. */
-declare const TokenKind: TokenKindMap;
-/** The kind of a token, one of the values of `TokenKind`. */
-type TokenKind = TokenKindMap[keyof TokenKindMap];
 
 /**
  * Bit flags describing a {@link Symbol}: which declaration kinds it
@@ -113,7 +106,6 @@ declare const SymbolFlags: {
   readonly Parameter: number;
   /** `catch (e)` binding. */
   readonly CatchVariable: number;
-  /** Exported from its module. */
   readonly Exported: number;
   /** The default export. */
   readonly Default: number;
@@ -124,9 +116,9 @@ declare const SymbolFlags: {
   readonly Variable: number;
   /** Composite: any import binding, value or `import type`. */
   readonly Import: number;
-  /** Composite: visible at runtime (var, function, class, enum and its members, value namespace). */
+  /** Composite: visible at runtime, as a var, function, class, enum, or value namespace. */
   readonly ValueSpace: number;
-  /** Composite: referencable from a type position (class, enum and its members, interface, alias, type param). */
+  /** Composite: usable as a type, as a class, enum, interface, alias, or type parameter. */
   readonly TypeSpace: number;
   /** Composite: what a dotted type name starts from (namespace, enum). */
   readonly NamespaceSpace: number;
@@ -147,7 +139,6 @@ declare const SymbolFlags: {
  */
 type Space = "value" | "type" | "namespace" | "typeof" | "any";
 
-/** What kind of construct created a {@link Scope}. */
 type ScopeKind =
   | "global"
   | "module"
@@ -159,18 +150,14 @@ type ScopeKind =
   | "tsModule"
   | "functionBody";
 
-/** A lexical scope in a module's scope tree. */
 interface Scope {
-  /** The owning module. */
   readonly module: Module;
   /** Stable id, the index into {@link Module.scopes}. */
   readonly id: number;
   readonly kind: ScopeKind;
-  /** Whether this scope is in strict mode. */
   readonly strict: boolean;
   /** The AST node that created this scope. */
   readonly node: Node;
-  /** The parent scope, or null for the global scope. */
   readonly parent: Scope | null;
   /** The nearest scope (or self) where `var` declarations land. */
   readonly hoistTarget: Scope;
@@ -190,7 +177,6 @@ interface Scope {
  * merges).
  */
 interface Symbol {
-  /** The owning module. */
   readonly module: Module;
   /**
    * Stable id, the index into {@link Module.symbols}. Deterministic per
@@ -200,7 +186,6 @@ interface Symbol {
   readonly name: string;
   /** Raw {@link SymbolFlags} bitset. */
   readonly flags: number;
-  /** The scope this symbol is declared in. */
   readonly scope: Scope;
   /** Every declarator node, in source order. */
   readonly declarations: Node[];
@@ -212,7 +197,6 @@ interface Symbol {
    * `symbol.has(SymbolFlags.ValueSpace)`.
    */
   has(mask: number): boolean;
-  /** True when every flag in `mask` is set. */
   hasAll(mask: number): boolean;
   /**
    * True when a reference resolving in `space` may bind to this
@@ -229,12 +213,10 @@ interface Symbol {
 
 /** One use of a name: a single identifier in reference position. */
 interface Reference {
-  /** The owning module. */
   readonly module: Module;
   /** Stable id, the index into {@link Module.references}. */
   readonly id: number;
   readonly name: string;
-  /** The scope the reference occurs in. */
   readonly scope: Scope;
   /** The identifier node, the same object as in the walked AST. */
   readonly node: Identifier | JSXIdentifier;
@@ -261,7 +243,7 @@ interface Reference {
 }
 
 /**
- * The semantic walk context: the toolchain's {@link BaseWalkContext} (the
+ * The semantic walk context: the toolchain's {@link WalkContext} (the
  * same position info and mutation operations, exact same semantics)
  * plus the module's semantic surface. One object is reused across the
  * whole walk; do not hold onto it across nodes.
@@ -271,7 +253,7 @@ interface Reference {
  * Analyze, transform, then print (or re-analyze the printed output for
  * fresh semantics).
  */
-declare class WalkContext<T extends Node = Node> extends BaseWalkContext<T> {
+declare class SemanticWalkContext<T extends Node = Node> extends WalkContext<T> {
   /** The module being walked. Every semantic query is in reach. */
   readonly module: Module;
   /**
@@ -286,42 +268,45 @@ declare class WalkContext<T extends Node = Node> extends BaseWalkContext<T> {
   readonly reference: Reference | null;
 }
 
-/** Handler invoked with the precisely-typed node and the walk context. */
-type WalkHandler<T extends Node = Node> = (node: T, ctx: WalkContext<T>) => void;
+type SemanticWalkHandler<T extends Node = Node> = (
+  node: T,
+  ctx: SemanticWalkContext<T>,
+) => void;
 
-/** Enter/leave pair for one node type. */
-interface WalkHooks<T extends Node = Node> {
-  enter?: WalkHandler<T>;
-  leave?: WalkHandler<T>;
+interface SemanticWalkHooks<T extends Node = Node> {
+  enter?: SemanticWalkHandler<T>;
+  leave?: SemanticWalkHandler<T>;
 }
 
 /**
- * Visitors passed to {@link Module.walk}: keys are node `type` strings, plus optional `enter` /
- * `leave` catch-alls. Order per node: catch-all `enter`, typed enter,
- * children, typed leave, catch-all `leave`.
+ * Visitors passed to {@link Module.walk}: keys are node `type` strings, plus optional `enter` and
+ * `leave` catch-alls. Order per node: catch-all `enter`, typed enter, children, typed leave,
+ * catch-all `leave`.
  */
-type Visitors = {
-  [K in NodeType]?: WalkHandler<NodeOfType<K>> | WalkHooks<NodeOfType<K>>;
+type SemanticVisitors = {
+  [K in NodeType]?: SemanticWalkHandler<NodeOfType<K>> | SemanticWalkHooks<NodeOfType<K>>;
 } & {
-  enter?: WalkHandler;
-  leave?: WalkHandler;
+  enter?: SemanticWalkHandler;
+  leave?: SemanticWalkHandler;
 };
 
-/** Handler for one node type in an async walk, free to return a promise. */
-type AsyncWalkHandler<T extends Node = Node> = (node: T, ctx: WalkContext<T>) => void | Promise<void>;
+type AsyncSemanticWalkHandler<T extends Node = Node> = (
+  node: T,
+  ctx: SemanticWalkContext<T>,
+) => void | Promise<void>;
 
-/** Enter/leave pair for one node type in an async walk. */
-interface AsyncWalkHooks<T extends Node = Node> {
-  enter?: AsyncWalkHandler<T>;
-  leave?: AsyncWalkHandler<T>;
+interface AsyncSemanticWalkHooks<T extends Node = Node> {
+  enter?: AsyncSemanticWalkHandler<T>;
+  leave?: AsyncSemanticWalkHandler<T>;
 }
 
-/** {@link Visitors}, with handlers that may return promises. */
-type AsyncVisitors = {
-  [K in NodeType]?: AsyncWalkHandler<NodeOfType<K>> | AsyncWalkHooks<NodeOfType<K>>;
+type AsyncSemanticVisitors = {
+  [K in NodeType]?:
+    | AsyncSemanticWalkHandler<NodeOfType<K>>
+    | AsyncSemanticWalkHooks<NodeOfType<K>>;
 } & {
-  enter?: AsyncWalkHandler;
-  leave?: AsyncWalkHandler;
+  enter?: AsyncSemanticWalkHandler;
+  leave?: AsyncSemanticWalkHandler;
 };
 
 /** A free variable of a function, as reported by {@link Module.capturesOf}. */
@@ -349,11 +334,9 @@ type ImportKind = "named" | "namespace" | "sideEffect" | "importEquals" | "dynam
 
 /** One imported binding (or side-effect import) of a module. */
 interface Import {
-  /** The importing module. */
   readonly module: Module;
   /** Stable id, the index into {@link Module.imports}. */
   readonly id: number;
-  /** The form of this record; every other field follows from it. */
   readonly kind: ImportKind;
   /**
    * The local binding symbol, or null when nothing binds (side-effect,
@@ -371,15 +354,11 @@ interface Import {
    * and `"importEquals"`.
    */
   readonly isNamespace: boolean;
-  /** True for bare `import "m"`. */
   readonly isSideEffect: boolean;
-  /** True for a literal-specifier `import("m")`. */
   readonly isDynamic: boolean;
-  /** True for a `require("m")` call on a free `require`. */
   readonly isRequire: boolean;
   /** True for `import type` / `import { type x }`. */
   readonly typeOnly: boolean;
-  /** Stage 3 phase modifier, or null. */
   readonly phase: "source" | "defer" | null;
   readonly specifier: string;
   /**
@@ -406,13 +385,10 @@ interface Import {
  */
 type ExportKind = "named" | "reExport" | "namespace" | "star" | "equals" | "global";
 
-/** One exported name of a module. */
 interface Export {
-  /** The exporting module. */
   readonly module: Module;
   /** Stable id, the index into {@link Module.exports}. */
   readonly id: number;
-  /** The form of this record; every other field follows from it. */
   readonly kind: ExportKind;
   /**
    * The exported name (`"default"` included), or null for `export *`,
@@ -490,7 +466,6 @@ interface Module {
    * for nodes that are neither, or for unresolved references.
    */
   symbolOf(node: Node): Symbol | null;
-  /** The reference recorded for an identifier node, or null. */
   referenceOf(node: Node): Reference | null;
   /**
    * The innermost scope whose extent contains `node`, or the module's
@@ -540,14 +515,14 @@ interface Module {
    * Scope information is replayed from the native scope tree, so
    * non-scope nodes pay a single type lookup and nothing else.
    */
-  walk(visitors: Visitors, root?: Node): void;
+  walk(visitors: SemanticVisitors, root?: Node): void;
 
   /**
    * The async counterpart of {@link Module.walk}: identical traversal
    * order and mutation semantics, with every handler awaited before
    * the walk moves on.
    */
-  walkAsync(visitors: AsyncVisitors, root?: Node): Promise<void>;
+  walkAsync(visitors: AsyncSemanticVisitors, root?: Node): Promise<void>;
 
   /** Collects every node of the given type(s), in source order. */
   findAll<K extends NodeType>(type: K): NodeOfType<K>[];
@@ -563,7 +538,6 @@ interface Module {
   readonly dependents: Module[];
 }
 
-/** CommonJS usage signals, as reported by {@link Module.moduleFlags}. */
 interface ModuleFlags {
   /** The file calls a free `require`. */
   readonly usesRequire: boolean;
@@ -571,7 +545,6 @@ interface ModuleFlags {
   readonly usesModule: boolean;
   /** The file references a free `exports`. */
   readonly usesExports: boolean;
-  /** The file uses `import.meta`. */
   readonly usesImportMeta: boolean;
 }
 
@@ -585,13 +558,11 @@ interface Definition {
   readonly symbol: Symbol | null;
 }
 
-/** A cross-module reference, as reported by {@link Analyzer.referencesOf}. */
 interface ModuleReference {
   readonly module: Module;
   readonly reference: Reference;
 }
 
-/** Options for {@link analyze}: {@link AddFileOptions} plus the module path. */
 interface AnalyzeOptions extends AddFileOptions {
   /**
    * The path recorded on the module, also the default source of
@@ -635,7 +606,6 @@ declare class Analyzer {
   addFile(path: string, source: string, options?: AddFileOptions): Module;
   /** Removes a file. Returns whether it existed. */
   removeFile(path: string): boolean;
-  /** The module added under `path`, if any. */
   module(path: string): Module | undefined;
   /** All modules, keyed by path. */
   readonly modules: ReadonlyMap<string, Module>;
@@ -673,25 +643,16 @@ declare class Analyzer {
   referencesOf(symbol: Symbol): ModuleReference[];
 }
 
-/** Resolves a {@link SourceLang} from a file path's extension. */
-declare function langFromPath(path: string): SourceLang;
-
-/** Resolves a {@link SourceType} from a file path's extension. */
-declare function sourceTypeFromPath(path: string): SourceType;
-
 export {
   analyze,
   Analyzer,
   SymbolFlags,
-  TokenKind,
-  langFromPath,
-  sourceTypeFromPath,
   type AddFileOptions,
   type AnalyzeOptions,
   type AnalyzerOptions,
-  type AsyncVisitors,
-  type AsyncWalkHandler,
-  type AsyncWalkHooks,
+  type AsyncSemanticVisitors,
+  type AsyncSemanticWalkHandler,
+  type AsyncSemanticWalkHooks,
   type Capture,
   type Definition,
   type Export,
@@ -702,15 +663,13 @@ export {
   type Module,
   type ModuleFlags,
   type ModuleReference,
-  type NodeOfType,
-  type NodeType,
   type Reference,
   type Scope,
   type ScopeKind,
+  type SemanticVisitors,
+  type SemanticWalkContext,
+  type SemanticWalkHandler,
+  type SemanticWalkHooks,
   type Space,
   type Symbol,
-  type Visitors,
-  type WalkContext,
-  type WalkHandler,
-  type WalkHooks,
 };

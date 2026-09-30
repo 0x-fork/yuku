@@ -1,8 +1,18 @@
 # yuku-codegen
 
-A high-performance JavaScript and TypeScript code generator written in Zig, powered by [Yuku](https://github.com/yuku-toolchain/yuku).
+A fast code generator for any ESTree / TypeScript-ESTree AST, with type stripping, minification, and Source Map V3 output, part of [Yuku](https://yuku.fyi).
 
-Renders an ESTree / TypeScript-ESTree AST back to source code, with optional Source Map V3 output.
+It is plain JavaScript with no native binary, and prints any ESTree AST, whichever parser produced it. Its output is byte-identical to Yuku's Zig printer, source maps included, and it runs 2.6x faster than `@babel/generator`, or 3x with source maps on.
+
+- [Install](#install)
+- [Usage](#usage)
+- [Result](#result)
+- [Options](#options)
+- [Type stripping](#type-stripping)
+- [Minification](#minification)
+- [Quotes](#quotes)
+- [Comments](#comments)
+- [Source maps](#source-maps)
 
 ## Install
 
@@ -13,114 +23,98 @@ npm install yuku-codegen
 ## Usage
 
 ```js
-import { parse } from "yuku-parser";
 import { generate } from "yuku-codegen";
+import { parse } from "yuku-parser";
 
-const { program } = parse("const x = 1 + 2;");
-const { code } = generate(program);
-
-console.log(code); // "const x = 1 + 2;"
+const { code } = generate(parse("const x = 1 + 2;").program);
+// "const x = 1 + 2;"
 ```
 
-## API
+## Result
 
-`generate` takes the `Program` node off the `ParseResult` returned by [`yuku-parser`](https://www.npmjs.com/package/yuku-parser) and returns a `GenerateResult`:
+`generate` takes a `Program` node and returns a `GenerateResult`.
 
 ```ts
 interface GenerateResult {
   code: string;
-  errors: Diagnostic[];
-  map: SourceMap | null;
+  diagnostics: Diagnostic[]; // empty on a clean run
+  map: SourceMap | null;     // with sourceMap
 }
 ```
 
-`errors` is empty on a clean run. `map` is non-null only when `sourceMap` is enabled.
+`diagnostics` has the same shape as [`yuku-parser`'s](https://www.npmjs.com/package/yuku-parser#diagnostics).
 
 ## Options
 
-Every transformation is an independent flag, so they compose freely:
+Every transformation is an independent flag, so they compose freely.
 
 ```js
-const { code, map } = generate(program, {
-  strip: true,
-  minify: true,
-  sourceMap: { source },
-});
+generate(program, { strip: true, minify: true, sourceMap: { source } });
 ```
 
-| Option      | Type                                                             | Default      | Description                                                                       |
-| ----------- | ---------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------- |
-| `strip`     | `boolean`                                                        | `false`      | Drop TypeScript-only syntax and emit plain JavaScript. See [TypeScript stripping](#typescript-stripping). |
-| `minify`    | `boolean \| MinifyOptions`                                       | `false`      | `true` for maximum minification, an object for fine-grained control. See [Minification](#minification). |
-| `format`    | `"pretty" \| "compact"`                                          | `"pretty"`   | Whitespace mode. `"compact"` emits only the separators the grammar requires.      |
-| `indent`    | `number`                                                         | `2`          | Spaces per indentation level. Applies in pretty mode only.                        |
-| `quotes`    | `"preserve" \| "double" \| "single" \| "shortest"`               | `"preserve"` | Quote style for string literals. See [Quotes](#quotes).                           |
-| `comments`  | `boolean \| "all" \| "some" \| "none" \| "line" \| "block"`      | `"some"`     | Comment passthrough filter. See [Comments](#comments).                            |
-| `sourceMap` | `SourceMapOptions`                                               | `undefined`  | Pass an object to emit a Source Map V3. See [Source maps](#source-maps).          |
+| Option      | Type                                                        | Default      | Description                                                                 |
+| ----------- | ----------------------------------------------------------- | ------------ | --------------------------------------------------------------------------- |
+| `strip`     | `boolean`                                                   | `false`      | Drop TypeScript-only syntax. See [Type stripping](#type-stripping).         |
+| `minify`    | `boolean \| MinifyOptions`                                  | `false`      | Minify the output. See [Minification](#minification).                       |
+| `format`    | `"pretty" \| "compact"`                                     | `"pretty"`   | `"compact"` emits only the separators the grammar requires.                 |
+| `indent`    | `number`                                                    | `2`          | Spaces per level in pretty format, from 0 to 255.                           |
+| `quotes`    | `"preserve" \| "double" \| "single" \| "shortest"`          | `"preserve"` | Quote style for string literals. See [Quotes](#quotes).                     |
+| `comments`  | `boolean \| "all" \| "some" \| "none" \| "line" \| "block"` | `"some"`     | Which attached comments to emit. See [Comments](#comments).                 |
+| `sourceMap` | `SourceMapOptions`                                          | none         | Emit a Source Map V3. See [Source maps](#source-maps).                      |
 
-## TypeScript stripping
+## Type stripping
 
 `strip: true` prints a TypeScript AST as plain JavaScript.
 
 ```js
-import { parse } from "yuku-parser";
-import { generate } from "yuku-codegen";
-
-const { program } = parse(`const x: number = 1;`, { lang: "ts" });
-console.log(generate(program, { strip: true }).code); // "const x = 1;"
+generate(parse(`const x: number = 1;`, { lang: "ts" }).program, { strip: true }).code;
+// "const x = 1;"
 ```
 
-Type annotations, type aliases, interfaces, and other type-only constructs are dropped. Constructs that emit runtime code (`enum`, `namespace`, `import = require()`, `export =`, parameter properties) are reported in `errors` and left out, and a parameter property keeps its plain parameter. The output is always syntactically valid JavaScript.
+Types, interfaces, type aliases, generics, type assertions, `satisfies`, non-null `!`, `declare`, and `abstract` strip cleanly. A few TypeScript features emit runtime values: `enum`, `namespace`, `module`, `export =`, `import = require()`, and parameter properties. Converting them is transpilation, not stripping, so each one is reported in `diagnostics` and left out, a parameter property keeps its plain parameter, and the rest of the file is still emitted. Their ambient forms (`declare enum`, `declare namespace`, `declare module`, `import type X = require(...)`) carry no runtime and strip silently.
 
 ## Minification
 
-`minify: true` enables every switch for maximum minification:
+`minify: true` enables every switch. An object picks them, and enabled switches override `format` and `quotes`.
+
+| Switch       | Behavior                                                    |
+| ------------ | ----------------------------------------------------------- |
+| `whitespace` | Emit compact whitespace.                                    |
+| `syntax`     | Apply the size-reducing syntax rewrites below.              |
+| `quotes`     | Use whichever quote needs fewer escapes per literal.        |
 
 ```js
-const { code } = generate(program, { minify: true });
+generate(program, { minify: { syntax: true } }); // rewrites only, readable output
 ```
 
-For fine-grained control, pass an object. Enabled switches override `format` and `quotes`.
+The syntax rewrites:
 
-| Switch       | Behavior                                                                     |
-| ------------ | ---------------------------------------------------------------------------- |
-| `whitespace` | Emit compact whitespace.                                                     |
-| `syntax`     | Apply size-reducing syntax rewrites (see below).                             |
-| `quotes`     | Use whichever quote needs fewer escapes per literal.                         |
-
-```js
-// rewrites only, keeping readable output
-const { code } = generate(program, { minify: { syntax: true } });
-```
-
-The `syntax` rewrites:
-
-- `true` and `false` rewrite to `!0` and `!1`.
-- Numeric literals shorten to their shortest form (`1000000` becomes `1e6`, `0.5` becomes `.5`).
-- `obj["foo"]` rewrites to `obj.foo` when the key is a valid identifier.
-- `{ "foo": x }` rewrites to `{ foo: x }` when safe.
+- `true` and `false` become `!0` and `!1`.
+- Numeric literals take their shortest form (`1000000` becomes `1e6`, `0.5` becomes `.5`).
+- `obj["foo"]` becomes `obj.foo` when the key is a valid identifier.
+- `{ "foo": x }` becomes `{ foo: x }` when safe.
 - `</script`, `<!--`, and `-->` are escaped in strings and untagged template literals, so the output is safe to inline in a `<script>` tag. Tagged templates keep their raw text, since the tag reads it.
 
 ## Quotes
 
-| Value        | Behavior                                                                                     |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| `"preserve"` | Keep each literal's source quote style, re-escaping the content. _(default)_                 |
-| `"double"`   | Force double quotes.                                                                         |
-| `"single"`   | Force single quotes.                                                                         |
-| `"shortest"` | Pick whichever quote needs fewer escapes per literal; double on a tie.                       |
+| Value        | Behavior                                                               |
+| ------------ | ---------------------------------------------------------------------- |
+| `"preserve"` | Keep each literal's source quote style, re-escaping the content.       |
+| `"double"`   | Force double quotes.                                                   |
+| `"single"`   | Force single quotes.                                                   |
+| `"shortest"` | Pick whichever quote needs fewer escapes per literal, double on a tie. |
 
 ## Comments
 
-Comments live on the AST nodes they were attached to during parsing, so parse with `attachComments: true` to keep them. The `comments` option then selects which attached comments are emitted. The default, `"some"`, follows the bundler convention of keeping legal banners, JSDoc, and tree-shaking annotations.
+Comments print from the nodes they are attached to, so parse with [`attachComments: true`](https://www.npmjs.com/package/yuku-parser#attaching-comments-to-nodes) to keep them. Because they live on nodes, they move with their node through transforms.
 
-| Value              | Behavior                                                        |
-| ------------------ | --------------------------------------------------------------- |
-| `"some"`           | Emit legal headers, JSDoc, and `@`/`#` annotations. _(default)_ |
-| `"all"` or `true`  | Emit every comment.                                             |
-| `"none"` or `false`| Drop every comment.                                             |
-| `"line"`           | Emit `// ...` only.                                             |
-| `"block"`          | Emit `/* ... */` only.                                          |
+| Value                | Behavior                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `"some"`             | Legal headers, JSDoc, and `@`/`#` annotations, the bundler convention. The default. |
+| `"all"` or `true`    | Every comment.                                                                      |
+| `"none"` or `false`  | No comments.                                                                        |
+| `"line"`             | `// ...` only.                                                                      |
+| `"block"`            | `/* ... */` only.                                                                   |
 
 ```js
 const { program } = parse(`// hello\nconst x = 1;`, { attachComments: true });
@@ -128,46 +122,28 @@ generate(program, { comments: true }).code;
 // "// hello\nconst x = 1;"
 ```
 
-Because comments are attached to nodes, they survive AST transforms: move or replace a node and its comments come with it. See the [yuku-parser comments docs](https://www.npmjs.com/package/yuku-parser#comments) for the comment options.
-
 ## Source maps
 
-Pass a `SourceMapOptions` object to emit a Source Map V3. Its `source` field is the original source text, which positions map back to. Without it, no map is produced and `map` is `null`. The other fields (`file`, `sourceFileName`, `sourceRoot`, `sourcesContent`) are optional metadata.
+Pass the original source to emit a Source Map V3 alongside the code.
 
 ```js
-import { writeFileSync } from "node:fs";
-import { parse } from "yuku-parser";
-import { generate } from "yuku-codegen";
-
-const source = `const greet = (name) => "Hello, " + name;`;
-const { program } = parse(source);
-
 const { code, map } = generate(program, {
-  sourceMap: {
-    source,
-    file: "out.js",
-    sourceFileName: "in.js",
-    sourcesContent: source,
-  },
+  sourceMap: { source, file: "out.js", sourceFileName: "in.js", sourcesContent: source },
 });
 
-writeFileSync("out.js", `${code}\n//# sourceMappingURL=out.js.map`);
-writeFileSync("out.js.map", JSON.stringify(map));
+const output = `${code}\n//# sourceMappingURL=out.js.map`;
+const mapJson = JSON.stringify(map);
 ```
 
-### `SourceMapOptions`
+| Field            | Description                                                 |
+| ---------------- | ----------------------------------------------------------- |
+| `source`         | **Required.** The original source text, positions map to it. |
+| `file`           | Output filename, embedded as `file`.                        |
+| `sourceFileName` | Source filename, the single entry of `sources`.             |
+| `sourceRoot`     | Embedded as `sourceRoot`.                                   |
+| `sourcesContent` | The single entry of `sourcesContent`.                       |
 
-| Field            | Type       | Description                                                                       |
-| ---------------- | ---------- | --------------------------------------------------------------------------------- |
-| `source`         | `string`   | **Required.** The original source text, used to map positions to the source. |
-| `file`           | `string`   | Output filename, embedded as the map's `file`.                                    |
-| `sourceFileName` | `string` | Source filename, embedded as the single entry of `sources`.                         |
-| `sourceRoot`     | `string` | Prefix embedded as `sourceRoot`.                                                    |
-| `sourcesContent` | `string` | When set, embedded as the single entry of the map's `sourcesContent`. Omit to skip. |
-
-### Output shape
-
-`map` is a Source Map V3 object, ready to serialize with `JSON.stringify`:
+`map` is a Source Map V3 object, ready for `JSON.stringify`. Columns are 0-indexed UTF-16 code units, the convention of browser devtools and source map libraries.
 
 ```ts
 interface SourceMap {
@@ -180,8 +156,6 @@ interface SourceMap {
   mappings: string;
 }
 ```
-
-Columns are 0-indexed UTF-16 code units, matching Chrome DevTools and consumer-side libraries like `@jridgewell/trace-mapping` and `source-map`.
 
 ## License
 

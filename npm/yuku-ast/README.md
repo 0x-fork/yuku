@@ -1,8 +1,16 @@
 # yuku-ast
 
-A typed, mutating AST walker and syntactic utilities for JavaScript and TypeScript ESTree trees, powered by [Yuku](https://github.com/yuku-toolchain/yuku).
+Walk, build, and check any ESTree / TypeScript-ESTree AST, with typed visitors, in-place mutation, builders, guards, and syntactic utilities, part of [Yuku](https://yuku.fyi).
 
-Works with any ESTree / TypeScript-ESTree AST. Traversal order is driven by tables generated from the [yuku-parser](https://www.npmjs.com/package/yuku-parser) AST definition, so it can never drift from the parser, and there is no runtime key discovery.
+It is plain JavaScript and works on any ESTree AST, whichever parser produced it. Traversal order comes from tables generated from Yuku's AST definition, so it never drifts from the parser, and there is no runtime key discovery.
+
+- [Install](#install)
+- [Walking](#walking)
+- [Builders](#builders)
+- [Guards](#guards)
+- [Imports and exports](#imports-and-exports)
+- [Utilities](#utilities)
+- [Identifier names](#identifier-names)
 
 ## Install
 
@@ -11,8 +19,6 @@ npm install yuku-ast
 ```
 
 ## Walking
-
-Handlers are keyed by node `type`, by alias group, or the universal `enter` / `leave`. Every handler receives the exact node type.
 
 ```ts
 import { parse } from "yuku-parser";
@@ -29,30 +35,77 @@ walk(program, {
     leave(node, ctx) {},
   },
   Function(node) {
-    // fires for function declarations, expressions, and arrows
+    // function declarations, expressions, and arrows
   },
   enter(node) {},
 });
 ```
 
-Aliases: `Expression`, `Statement`, `Declaration`, `ModuleDeclaration`, `Function`, `Class`, `Method`, `Loop`, `Pattern`, `JSX`, `TSType`. Per node the order is universal `enter`, alias enters, the typed enter, children, then the mirror for leave.
+Handlers are keyed by node `type`, by alias group, or by the universal `enter` / `leave`, and receive the exact node type. The alias groups are `Expression`, `Statement`, `Declaration`, `ModuleDeclaration`, `Function`, `Class`, `Method`, `Loop`, `Pattern`, `JSX`, and `TSType`. Per node, the order is the universal `enter`, alias enters, the typed enter, the children, then the same in reverse for leave.
 
-The context exposes the position (`ctx.parent`, `ctx.key`, `ctx.index`, `ctx.ancestors()`), flow control (`ctx.skip()`, `ctx.stop()`), and in-place mutation: `ctx.replace(node)` continues into the replacement, `ctx.remove()` skips the removed subtree, `ctx.insertBefore(node)` inserts a sibling without visiting it, `ctx.insertAfter(node)` inserts one the walk visits. An optional third argument threads state to every handler as `ctx.state`.
+An optional third argument threads state to every handler as `ctx.state`. `walkAsync` is the async counterpart, with the same traversal order and mutation semantics and every handler awaited before the walk moves on.
 
-`walkAsync` is the async counterpart: identical traversal and mutation semantics, every handler awaited before the walk moves on.
+### The context
+
+One context object is reused across the whole walk, so do not store it.
+
+```js
+ctx.node;        // the current node
+ctx.parent;      // its parent, or null at the walk root
+ctx.key;         // the field on the parent holding this node
+ctx.index;       // position in an array field, or null
+ctx.ancestors(); // a copy of the ancestor chain, root first
+```
+
+### Mutation
+
+Handlers can mutate the AST in place.
+
+| Operation                | Effect                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `ctx.skip()`             | Do not descend into this node's children. `leave` still fires.                                                 |
+| `ctx.stop()`             | End the walk immediately.                                                                                      |
+| `ctx.replace(node)`      | Swap the current node. The walk continues into the replacement's children and `leave` fires for its new type. |
+| `ctx.remove()`           | Splice the node out of an array field, or null a plain field. Children are not walked, `leave` does not fire.  |
+| `ctx.insertBefore(node)` | Insert a sibling before the current node. The inserted node is not visited.                                    |
+| `ctx.insertAfter(node)`  | Insert a sibling after the current node. The walk visits it.                                                   |
+
+A replacement created with `start: 0, end: 0`, such as a [builder](#builders) node, inherits the original node's span, which keeps source maps meaningful through [`yuku-codegen`](https://www.npmjs.com/package/yuku-codegen).
+
+```js
+walk(program, {
+  DebuggerStatement(node, ctx) {
+    ctx.remove();
+  },
+});
+```
+
+### findAll
+
+`findAll` collects every node of the given types, in source order.
+
+```js
+import { findAll } from "yuku-ast";
+
+findAll(program, "CallExpression");
+findAll(program, ["ClassDeclaration", "TSInterfaceDeclaration"]);
+```
+
+`CHILD_KEYS` maps each node type to its child fields in traversal order, for walkers of your own.
 
 ## Builders
 
-One constructor per node type, its fields derived from the node type itself, so a builder can never drift from the AST. Spans default to 0, which `ctx.replace` fills from the replaced node.
+`b` has one typed constructor per node type, its fields derived from the node type itself, so a builder never drifts from the AST. Spans default to 0, which `ctx.replace` fills from the replaced node.
 
 ```ts
 import { b } from "yuku-ast";
 
-b.Identifier({ name: "x" });
 b.CallExpression({ callee: b.Identifier({ name: "f" }), arguments: [], optional: false });
 ```
 
 ## Guards
+
+`is` has one guard per node type, per alias group, and for the shapes ESTree folds into one type: literal kinds, member expression kinds, and directives. Every guard accepts `null` and `undefined` and narrows.
 
 ```ts
 import { is } from "yuku-ast";
@@ -66,12 +119,12 @@ is.StaticMemberExpression(node);
 is.Directive(node);
 ```
 
-One guard per concrete node type, per alias group, and for the common shapes ESTree folds into one type: literal kinds, member expression kinds, and directives. Every guard accepts `null` and `undefined` and narrows.
+## Imports and exports
 
-## Modules
+`collectImports` and `collectExports` read a module's import and export declarations, one record per bound name, destructuring included.
 
 ```ts
-import { collectImports, collectExports } from "yuku-ast";
+import { collectExports, collectImports } from "yuku-ast";
 
 for (const record of collectImports(program)) {
   record.source;   // "./m"
@@ -82,14 +135,14 @@ for (const record of collectImports(program)) {
 }
 
 for (const record of collectExports(program)) {
-  record.exported; // the exported name, null for bare export *
+  record.exported; // the exported name, null for a bare export *
   record.local;    // the backing local name, when there is one
   record.source;   // the re-export specifier, when there is one
   record.typeOnly;
 }
 ```
 
-Declaration forms expand to one record per bound name, destructuring included. The per-declaration forms `collectImportDeclaration` and `collectExportDeclaration` return the records of a single statement, composing with a walk:
+`collectImportDeclaration` and `collectExportDeclaration` return the records of a single statement, for use inside a walk.
 
 ```ts
 walk(program, {
@@ -103,28 +156,31 @@ walk(program, {
 
 ```ts
 import {
-  nameOf,          // Identifier name or string Literal value
-  literalValue,    // string | number | boolean | bigint | RegExp | null
-  unwrap,          // strips parens and erased TS assertion wrappers
-  isWrapper,       // true for the wrappers unwrap strips
-  isCallOf,        // isCallOf(node, "require")
   bindingIdentifiers, // every binding Identifier a pattern introduces
-  findAll,         // findAll(program, "CallExpression")
+  isCallOf,           // isCallOf(node, "require")
+  isWrapper,          // true for the wrappers unwrap strips
+  literalValue,       // string | number | boolean | bigint | RegExp | null
+  nameOf,             // Identifier name or string Literal value
+  unwrap,             // strips parens and erased TypeScript assertion wrappers
 } from "yuku-ast";
 ```
 
-## Identifiers
+## Identifier names
 
 ```ts
-import { isValidIdentifier, isIdentifierName, isKeyword } from "yuku-ast";
+import { isIdentifierName, isValidIdentifier } from "yuku-ast";
 
 isValidIdentifier("foo");   // true
 isValidIdentifier("class"); // false, reserved
 isIdentifierName("class");  // true, syntactically an IdentifierName
 ```
 
-Plus `isIdentifierStart`, `isIdentifierChar`, `isReservedWord`, `isStrictReservedWord`, `isStrictBindReservedWord`, `isStrictBindOnlyReservedWord`.
+Plus `isIdentifierStart`, `isIdentifierChar`, `isKeyword`, `isReservedWord`, `isStrictReservedWord`, `isStrictBindReservedWord`, and `isStrictBindOnlyReservedWord`.
 
 ## Semantic analysis
 
-[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) builds on this walker and adds full semantics: scopes, symbols, resolved references, closure analysis, and cross-file module linking, computed natively. Its `module.walk` carries the semantic model in context (`ctx.scope`, `ctx.symbol`, `ctx.reference`).
+[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) builds on this walker. Its `module.walk` carries the semantic model in the context, as `ctx.scope`, `ctx.symbol`, and `ctx.reference`.
+
+## License
+
+MIT

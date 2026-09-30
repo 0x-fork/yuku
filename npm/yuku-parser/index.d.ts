@@ -10,7 +10,6 @@ import type {
 
 export * from "@yuku-toolchain/types";
 
-/** Options for configuring the parser. */
 interface ParseOptions {
   /**
    * Parse as a classic script, an ES module, or a CommonJS module.
@@ -22,10 +21,7 @@ interface ParseOptions {
    * @default "module"
    */
   sourceType?: SourceType;
-  /**
-   * Language variant controls which syntax extensions are enabled.
-   * @default "js"
-   */
+  /** @default "js" */
   lang?: SourceLang;
   /**
    * When true, parenthesized expressions are represented as
@@ -56,9 +52,7 @@ interface ParseOptions {
   tokens?: boolean;
 }
 
-/** The result returned by the parser. */
 interface ParseResult {
-  /** Root ESTree/TypeScript-ESTree AST node. */
   program: Program;
   /** Every comment in source order, each with its source span. */
   comments: Comment[];
@@ -68,33 +62,12 @@ interface ParseResult {
   diagnostics: Diagnostic[];
 }
 
-/**
- * Parse JS/TS source code and return an ESTree / TypeScript-ESTree compatible AST.
- */
 export function parse(source: string, options?: ParseOptions): ParseResult;
 
 /** Every token kind by name, `tokens.kind(i) === TokenKind.Arrow`. */
 export const TokenKind: TokenKindMap;
-/** The kind of a token, one of the values of `TokenKind`. */
 export type TokenKind = TokenKindMap[keyof TokenKindMap];
 
-/**
- * Resolves a {@link SourceLang} from a file path's extension.
- *
- * - `.d.ts`, `.d.mts`, `.d.cts` → `"dts"`
- * - `.tsx` → `"tsx"`
- * - `.ts`, `.mts`, `.cts` → `"ts"`
- * - `.jsx` → `"jsx"`
- * - everything else → `"js"`
- */
-export function langFromPath(path: string): SourceLang;
-
-/**
- * Resolves a {@link SourceType} from a file path's extension.
- *
- * - `.cjs`, `.cts` → `"commonjs"`
- * - everything else → `"module"`
- */
-export function sourceTypeFromPath(path: string): SourceType;
+export { langFromPath, sourceTypeFromPath } from "yuku-engine";
 
 export type { ParseOptions, ParseResult };

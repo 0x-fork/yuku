@@ -33,7 +33,6 @@ const headers = {
   "content-type": "application/json",
 };
 
-// the playground preview Vercel deployed for this commit, recorded as a GitHub deployment
 async function previewPlayground(): Promise<string | null> {
   if (!HEAD_SHA) return null;
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -55,8 +54,8 @@ async function previewPlayground(): Promise<string | null> {
   return null;
 }
 
-const wasm = packages.find((pkg) => pkg.name === "@yuku-parser/wasm");
-const sha = wasm?.url.split("@").pop();
+const parser = packages.find((pkg) => pkg.name === "yuku-parser");
+const sha = parser?.url.split("@").pop();
 const origin = (await previewPlayground()) ?? "https://playground.yuku.fyi";
 const playground = sha ? `${origin}/?pr=${sha}` : null;
 

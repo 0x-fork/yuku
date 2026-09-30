@@ -22,7 +22,7 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 
 ## Documentation
 
-Visit [yuku.fyi](https://yuku.fyi) for the full documentation and API reference.
+Visit [yuku.fyi](https://yuku.fyi) for the documentation. Each npm package documents its JavaScript API in its README.
 
 ## Parser
 
@@ -38,7 +38,7 @@ import { parse } from "yuku-parser";
 const { program, comments, diagnostics } = parse("const x = 1 + 2;");
 ```
 
-Outputs an [ESTree](https://github.com/estree/estree) / [TS-ESTree](https://www.npmjs.com/package/@typescript-eslint/typescript-estree)-compatible AST matching [Oxc](https://oxc.rs). Runs 3-10x faster than alternatives on npm.
+Outputs an [ESTree](https://github.com/estree/estree) / [TypeScript-ESTree](https://www.npmjs.com/package/@typescript-eslint/typescript-estree)-compatible AST matching [Oxc](https://oxc.rs). Runs 3-10x faster than alternatives on npm, and in browsers with [`@yuku-engine/wasm`](https://www.npmjs.com/package/@yuku-engine/wasm).
 
 ### Zig
 
@@ -73,14 +73,14 @@ generate(parse("const enabled = true;").program, { minify: true }).code;
 // "const enabled=!0"
 ```
 
-Emits a Source Map V3 in the same pass, ~2.5x faster than `@babel/generator` with source maps on:
+Emits a Source Map V3 in the same pass, and runs 2.6x faster than `@babel/generator`, or 3x with source maps on:
 
 ```js
 const { program } = parse(source);
 const { code, map } = generate(program, { sourceMap: { source } });
 ```
 
-[Read the codegen documentation →](https://yuku.fyi/parser/codegen)
+[Read the yuku-codegen documentation →](https://www.npmjs.com/package/yuku-codegen)
 
 ## Analyzer
 
@@ -103,7 +103,7 @@ project.module("c.ts").rootScope.find("renamed").definition().symbol.name;
 
 Scopes, symbols, resolved references, closures, and cross-file module linking, computed in one native pass.
 
-[Read the analyzer documentation →](https://yuku.fyi/analyzer)
+[Read the yuku-analyzer documentation →](https://www.npmjs.com/package/yuku-analyzer)
 
 ## Performance
 
@@ -116,9 +116,16 @@ Scopes, symbols, resolved references, closures, and cross-file module linking, c
 - [Native benchmark (Zig/Rust)](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-native) - up to 1.5x faster than Oxc, 2.2-2.6x faster than SWC
 - [npm benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js) - 3-10x faster than alternatives
 
+## Size
+
+- `yuku-parser` installs in 730 kB, against 4.7 MB for `oxc-parser` and 4.8 MB for `@babel/parser`
+- `yuku-codegen` installs in 200 kB, against 2.5 MB for `@babel/generator`
+
+[See the size comparison →](https://yuku.fyi/#size)
+
 ## Testing
 
-Yuku is 100% ECMAScript spec compliant. The parser is validated against a dedicated [parser test suite](https://github.com/yuku-toolchain/parser-test-suite): over 55,000 cases sourced from [Test262](https://github.com/tc39/test262), the TypeScript compiler, and Babel, with exact AST matching against independently generated ESTree / TS-ESTree snapshots. The suite syncs with upstream daily, and Yuku passes all of it with zero failures and zero AST mismatches.
+Yuku is 100% ECMAScript spec compliant. The parser is validated against a dedicated [parser test suite](https://github.com/yuku-toolchain/parser-test-suite): over 55,000 cases sourced from [Test262](https://github.com/tc39/test262), the TypeScript compiler, and Babel, with exact AST matching against independently generated ESTree / TypeScript-ESTree snapshots. The suite syncs with upstream daily, and Yuku passes all of it with zero failures and zero AST mismatches.
 
 [Read how Yuku is tested →](https://yuku.fyi/testing)
 

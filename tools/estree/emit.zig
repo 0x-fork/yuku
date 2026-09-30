@@ -1,11 +1,8 @@
-// re-emits generated JS through yuku's own parser and codegen
-
 const std = @import("std");
 const parser = @import("parser");
 
 const Writer = std.Io.Writer;
 
-/// Runs `generate` and prints the JS it writes to stdout, minified.
 pub fn minifiedToStdout(io: std.Io, generate: *const fn (*Writer) Writer.Error!void) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -32,7 +29,7 @@ fn minified(allocator: std.mem.Allocator, w: *Writer, js: []const u8) !void {
         .comments = .none,
     });
     defer result.deinit(allocator);
-    if (result.errors.len != 0) return error.GeneratedJsDoesNotPrint;
+    if (result.diagnostics.len != 0) return error.GeneratedJsDoesNotPrint;
 
     if (std.mem.startsWith(u8, js, "//")) {
         const nl = std.mem.indexOfScalar(u8, js, '\n').?;

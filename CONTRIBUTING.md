@@ -32,8 +32,10 @@ bun run test
 
 This builds everything from your Zig and runs every suite. To run a single one,
 use `test:parser`, `test:codegen`, `test:analyzer`, `test:sourcemap`,
-`test:ast`, or `test:wasm`. After editing Zig, run `bun run build:local` first
-so the suite sees your change.
+`test:ast`, `test:wasm`, or `test:runtime`, which runs every package with the
+`node` on your path. CI runs it on the minimum runtime, see AGENTS.md. After
+editing Zig, run `bun run build:local` and `bun run build:wasm` first so the
+suites see your change.
 
 ### Add a test
 
@@ -45,6 +47,13 @@ so the suite sees your change.
 
 Review the snapshot and commit it alongside your test. To learn what each suite
 checks, see [how Yuku is tested](https://yuku.fyi/testing/).
+
+### Change the codegen
+
+The codegen has a Zig implementation, `src/parser/codegen/printer.zig`, and a
+JavaScript one, `npm/yuku-codegen/src/printer.ts`. They mirror each other
+function by function, so a change lands in both. `bun run test:codegen` prints
+the test corpus with each and fails on any difference.
 
 ## Find your way around
 

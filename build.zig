@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
         "parser-extension",
         "Path to a Zig source file supplying parser extension points (default: none)",
     );
-    // pins neither target nor optimize, so the fuzz graph below can share the instance
+    // pins neither target nor optimize, so the host tool and wasm graphs can share the instance
     const parser_extension = if (parser_extension_source) |source| b.createModule(.{
         .root_source_file = if (std.fs.path.isAbsolute(source))
             .{ .cwd_relative = source }
@@ -110,59 +110,64 @@ pub fn build(b: *std.Build) void {
     extension_tests.addImport("extension", reference_extension);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = extension_tests })).step);
 
-    const fuzz_util = b.createModule(.{
+    // host tools run fast with every assertion armed
+    const safe_util = b.createModule(.{
         .root_source_file = b.path("src/util/root.zig"),
         .target = b.graph.host,
         .optimize = .ReleaseSafe,
     });
-    const fuzz_parser = b.createModule(.{
+    const safe_parser = b.createModule(.{
         .root_source_file = b.path("src/parser/root.zig"),
         .target = b.graph.host,
         .optimize = .ReleaseSafe,
     });
-    fuzz_parser.addImport("util", fuzz_util);
-    fuzz_parser.addImport("codegen_options", codegen_options_module);
-    fuzz_parser.addImport("parser_extension", parser_extension);
+    safe_parser.addImport("util", safe_util);
+    safe_parser.addImport("codegen_options", codegen_options_module);
+    safe_parser.addImport("parser_extension", parser_extension);
     const fuzz_driver = b.createModule(.{
         .root_source_file = b.path("src/parser/testing/fuzz/main.zig"),
         .target = b.graph.host,
         .optimize = .ReleaseSafe,
     });
-    fuzz_driver.addImport("parser", fuzz_parser);
+    fuzz_driver.addImport("parser", safe_parser);
     const fuzz_exe = b.addExecutable(.{ .name = "fuzz", .root_module = fuzz_driver });
     const run_fuzz = b.addRunArtifact(fuzz_exe);
     run_fuzz.has_side_effects = true;
     const fuzz_step = b.step("fuzz", "Fuzz the JS/TS parser for crashes and memory bugs");
     fuzz_step.dependOn(&run_fuzz.step);
 
+    const codegen_reference_module = b.createModule(.{
+        .root_source_file = b.path("src/parser/testing/codegen/reference.zig"),
+        .target = b.graph.host,
+        .optimize = .ReleaseSafe,
+    });
+    codegen_reference_module.addImport("parser", safe_parser);
+    const codegen_reference = b.addExecutable(.{
+        .name = "codegen-reference",
+        .root_module = codegen_reference_module,
+    });
+    const codegen_reference_step = b.step(
+        "codegen-reference",
+        "Build the Zig printer reference the JS printer is checked against",
+    );
+    codegen_reference_step.dependOn(&b.addInstallArtifact(codegen_reference, .{}).step);
+
     const napi_dep = b.dependency("napi_zig", .{});
 
-    for ([_]struct { name: []const u8, tool: []const u8 }{
-        .{ .name = "parser", .tool = "parser" },
-        .{ .name = "codegen", .tool = "code generator" },
-        .{ .name = "analyzer", .tool = "semantic analyzer" },
-    }) |lib| {
-        napi_zig.addLib(b, napi_dep, .{
-            .name = b.fmt("yuku-{s}", .{lib.name}),
-            .root = b.path(b.fmt("src/parser/ffi/{s}.zig", .{lib.name})),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "parser", .module = parser_module },
-            },
-            .npm = .{
-                .scope = b.fmt("@yuku-{s}", .{lib.name}),
-                .description = b.fmt(
-                    "High-performance JavaScript/TypeScript {s} written in Zig",
-                    .{lib.tool},
-                ),
-                .dts = .{
-                    .file = b.path(b.fmt("src/parser/ffi/{s}.d.ts", .{lib.name})),
-                },
-                .repository = "https://github.com/yuku-toolchain/yuku",
-            },
-        });
-    }
+    napi_zig.addLib(b, napi_dep, .{
+        .name = "yuku-engine",
+        .root = b.path("src/parser/ffi/napi.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "parser", .module = parser_module },
+        },
+        .npm = .{
+            .scope = "@yuku-engine",
+            .description = "The native binary that the Yuku packages run on",
+            .repository = "https://github.com/yuku-toolchain/yuku",
+        },
+    });
 
     const wasm_target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
@@ -174,34 +179,35 @@ pub fn build(b: *std.Build) void {
             .simd128,
         }),
     });
-    const wasm_step = b.step("wasm", "Build the WebAssembly modules");
+    const wasm_step = b.step("wasm", "Build the WebAssembly engine");
 
-    const wasm_transfer_module = b.createModule(.{
-        .root_source_file = b.path("src/parser/ffi/transfer/root.zig"),
+    const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+    const wasm_util = b.createModule(.{
+        .root_source_file = b.path("src/util/root.zig"),
         .target = wasm_target,
-        .optimize = .ReleaseSmall,
+        .optimize = wasm_optimize,
     });
-    wasm_transfer_module.addImport("parser", parser_module);
+    const wasm_parser = b.createModule(.{
+        .root_source_file = b.path("src/parser/root.zig"),
+        .target = wasm_target,
+        .optimize = wasm_optimize,
+    });
+    wasm_parser.addImport("util", wasm_util);
+    wasm_parser.addImport("codegen_options", codegen_options_module);
+    wasm_parser.addImport("parser_extension", parser_extension);
 
-    for ([_]struct { name: []const u8, root: []const u8 }{
-        .{ .name = "yuku-parser", .root = "src/parser/ffi/wasm/parser.zig" },
-        .{ .name = "yuku-codegen", .root = "src/parser/ffi/wasm/codegen.zig" },
-        .{ .name = "yuku-analyzer", .root = "src/parser/ffi/wasm/analyzer.zig" },
-    }) |cfg| {
-        const wasm_module = b.createModule(.{
-            .root_source_file = b.path(cfg.root),
-            .target = wasm_target,
-            .optimize = .ReleaseSmall,
-            .strip = true,
-        });
-        wasm_module.addImport("parser", parser_module);
-        wasm_module.addImport("transfer", wasm_transfer_module);
+    const wasm_module = b.createModule(.{
+        .root_source_file = b.path("src/parser/ffi/wasm.zig"),
+        .target = wasm_target,
+        .optimize = wasm_optimize,
+        .strip = true,
+    });
+    wasm_module.addImport("parser", wasm_parser);
 
-        const wasm = b.addExecutable(.{ .name = cfg.name, .root_module = wasm_module });
-        wasm.entry = .disabled;
-        wasm.rdynamic = true;
-        wasm_step.dependOn(&b.addInstallArtifact(wasm, .{}).step);
-    }
+    const wasm = b.addExecutable(.{ .name = "yuku-engine", .root_module = wasm_module });
+    wasm.entry = .disabled;
+    wasm.rdynamic = true;
+    wasm_step.dependOn(&b.addInstallArtifact(wasm, .{}).step);
 
     const main_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -241,12 +247,6 @@ pub fn build(b: *std.Build) void {
             .description = "Generate decode-analyzer.js for yuku-analyzer",
             .root = "tools/gen_analyzer_decoder.zig",
             .output = "decode-analyzer.js",
-        },
-        .{
-            .step = "gen-codegen-encoder",
-            .description = "Generate encode.js for yuku-codegen",
-            .root = "tools/gen_codegen_encoder.zig",
-            .output = "encode.js",
         },
         .{
             .step = "gen-walk-tables",

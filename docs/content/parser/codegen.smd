@@ -1,230 +1,62 @@
 ---
 .title = "Codegen",
-.description = "Print a parsed Tree back to JavaScript or TypeScript source, with configurable formatting, type stripping, minification, and Source Map V3 output.",
+.description = "Print a tree back to JavaScript or TypeScript source, with type stripping, minification, and source maps.",
 .author = "Arshad Yaseen",
 .date = @date("2026-06-23T00:00:00"),
 .layout = "page.shtml",
 ---
-The codegen writes a `Tree` back as source code. It emits each node from its tag in a single walk, so the output is always syntactically valid and faithful to the tree's structure.
+The codegen prints a tree back to source in one walk, so its output is always valid and faithful to the tree.
 
-## [Node.js]($section.id('nodejs'))
+## [JavaScript]($section.id('javascript'))
 
 ```bash
 npm install yuku-codegen
 ```
 
 ```js
-import { parse } from "yuku-parser";
 import { generate } from "yuku-codegen";
+import { parse } from "yuku-parser";
 
-const { program } = parse("const x = 1 + 2;");
-const { code } = generate(program);
+const { code, map, diagnostics } = generate(parse("const x = 1 + 2;").program);
 ```
 
-`generate` takes the `Program` node returned by [yuku-parser](https://www.npmjs.com/package/yuku-parser). For source maps, pass the original source text via `sourceMap: { source }`. In JavaScript, `minify` also takes an object (`{ syntax, whitespace, quotes }`) to pick individual switches, and `comments` accepts `true` / `false` for `"all"` / `"none"`. See [yuku-codegen on npm](https://www.npmjs.com/package/yuku-codegen) for the full API.
-
-## [WebAssembly]($section.id('webassembly'))
-
-```bash
-npm install @yuku-codegen/wasm
-```
-
-```js
-import { parse } from "@yuku-parser/wasm";
-import { generate } from "@yuku-codegen/wasm";
-
-const { program } = parse("const x = 1 + 2;");
-const code = generate(program);
-```
-
-The same options as `yuku-codegen`, except that `generate` returns the code string directly and source maps are unavailable. It pairs with `@yuku-parser/wasm` for browsers and other environments without native bindings. See [@yuku-codegen/wasm on npm](https://www.npmjs.com/package/@yuku-codegen/wasm).
+The same printer in plain JavaScript, for any ESTree AST, with [byte-identical output](/testing/#codegen), source maps included. It runs 2.6x faster than `@babel/generator`, or 3x with source maps on. See [yuku-codegen on npm](https://www.npmjs.com/package/yuku-codegen) for the full API.
 
 ## [Zig]($section.id('zig'))
 
-```bash
-zig fetch --save git+https://github.com/yuku-toolchain/yuku.git
-```
-
 ```zig
-const std = @import("std");
-const parser = @import("parser");
-
-pub fn main() !void {
-    const allocator = std.heap.smp_allocator;
-
-    var tree = try parser.parse(allocator, "const x = 1 + 2;", .{});
-    defer tree.deinit();
-
-    const result = try parser.codegen.generate(allocator, &tree, .{});
-    defer result.deinit(allocator);
-
-    std.debug.print("{s}", .{result.code});
-}
-```
-
-`generate` writes into a fresh buffer and leaves the `Tree` unchanged. The returned `Result` owns its buffers, freed with `result.deinit(allocator)`.
-
-## [Result]($section.id('result'))
-
-```zig
-pub const Result = struct {
-    code: []const u8,
-    errors: []const Diagnostic,
-    map: ?SourceMap = null,
-};
-```
-
-| Field    | Type                 | Description                                         |
-| -------- | -------------------- | --------------------------------------------------- |
-| `code`   | `[]const u8`         | Generated source                                    |
-| `errors` | `[]const Diagnostic` | Codegen-detected problems, empty for a clean run    |
-| `map`    | `?SourceMap`         | Source Map V3 when `source_map` was set, else null  |
-
-The only error `generate` returns is `error.OutOfMemory`. Codegen-detected problems go to `errors` and do not abort the run. They only occur when stripping (see [Type stripping](#type-stripping)).
-
-A `Diagnostic` carries:
-
-```zig
-pub const Diagnostic = struct {
-    message: []const u8,
-    start: u32,
-    end: u32,
-};
-```
-
-## [Options]($section.id('options'))
-
-```zig
-const result = try parser.codegen.generate(allocator, &tree, .{
-    .strip = false,
-    .minify = false,
-    .format = .pretty,
-    .indent = 2,
-    .quotes = .preserve,
-    .comments = .some,
-    .source_map = null,
-});
-```
-
-| Field        | Type                | Default     | Description                                                |
-| ------------ | ------------------- | ----------- | ---------------------------------------------------------- |
-| `strip`      | `bool`              | `false`     | Drop TypeScript-only syntax. See [Type stripping](#type-stripping). |
-| `minify`     | `bool`              | `false`     | Apply size-reducing syntax rewrites. See [Minification](#minification). |
-| `format`     | `Format`            | `.pretty`   | `.pretty` (indented) or `.compact` (no extra whitespace)   |
-| `indent`     | `u8`                | `2`         | Spaces per level in pretty format                          |
-| `quotes`     | `Quotes`            | `.preserve` | `.preserve` keeps each string's source quote style, `.double` / `.single` force one (content always re-escaped), `.shortest` picks the quote with fewer escapes |
-| `comments`   | `Comments`          | `.some`     | Comment passthrough filter. See [Comments](#comments).     |
-| `source_map` | `?SourceMapOptions` | `null`      | Set to emit a Source Map V3 alongside the code             |
-
-Every transformation is an independent flag, so they compose freely, e.g. `.strip = true` together with `.minify = true`.
-
-`Format` controls only discretionary whitespace. Grammar-required separators (semicolons, commas, parentheses) are always emitted regardless of mode.
-
-## [Source maps]($section.id('source-maps'))
-
-Pass the original `source` to `source_map` to emit a Source Map V3 alongside the generated code. Without a `source` there is nothing to map back to, so no map is produced.
-
-```zig
-var tree = try parser.parse(allocator, source, .{});
-defer tree.deinit();
-
-const result = try parser.codegen.generate(allocator, &tree, .{
-    .source_map = .{
-        .source = source,
-        .file = "out.js",
-        .source_file_name = "in.js",
-        .sources_content = source,
-    },
-});
-defer result.deinit(allocator);
-
-// result.map is non-null when a source was provided.
-const map = result.map.?;
-```
-
-### [`SourceMapOptions`]($section.id('sourcemapoptions'))
-
-```zig
-pub const SourceMapOptions = struct {
-    source: ?[]const u8 = null,
-    file: ?[]const u8 = null,
-    source_file_name: ?[]const u8 = null,
-    source_root: ?[]const u8 = null,
-    sources_content: ?[]const u8 = null,
-    utf16_offsets: bool = false,
-};
-```
-
-| Field              | Type          | Description                                                          |
-| ------------------ | ------------- | -------------------------------------------------------------------- |
-| `source`           | `?[]const u8` | The original source text. Required to emit a map                     |
-| `file`             | `?[]const u8` | Output filename, embedded as the map's `file`                        |
-| `source_file_name` | `?[]const u8` | Source filename, embedded as the single entry of `sources`           |
-| `source_root`      | `?[]const u8` | Prefix embedded as `sourceRoot`                                      |
-| `sources_content`  | `?[]const u8` | When set, embedded as the single entry of the map's `sourcesContent` |
-| `utf16_offsets`    | `bool`        | Whether node spans count UTF-16 code units instead of UTF-8 bytes    |
-
-### [Result shape]($section.id('result-shape'))
-
-`SourceMap` is the Source Map V3 wire format, ready to serialize.
-
-```zig
-pub const SourceMap = struct {
-    version: u8 = 3,
-    file: ?[]const u8,
-    source_root: ?[]const u8,
-    sources: []const []const u8,
-    sources_content: ?[]const ?[]const u8,
-    names: []const []const u8,
-    mappings: []const u8,
-};
-```
-
-Columns are 0-indexed UTF-16 code units, matching the convention used by Chrome DevTools and consumer-side libraries (`@jridgewell/trace-mapping`, `source-map`, etc.).
-
-## [Comments]($section.id('comments'))
-
-Comments live on the AST nodes they were attached to during parsing (see [Comments](/parser/ast/#comments) in the AST reference). For codegen to print them, the tree must have been parsed with `comments = .attached` (or `.both`).
-
-The `comments` option selects which attached comments are emitted. The default is `.some`, matching the bundler convention of preserving legal banners, JSDoc, and tree-shaking annotations while dropping plain noise.
-
-```zig
-pub const Comments = enum {
-    none,    // drop every comment
-    all,     // emit every comment
-    some,    // legal banners, jsdoc, and tree-shaking annotations
-    line,    // emit `// ...` only
-    block,   // emit `/* ... */` only
-};
-```
-
-Because comments are attached to nodes, they survive AST transforms. Move or replace a node and its comments come with it.
-
-## [Type stripping]($section.id('type-stripping'))
-
-`strip` prints a TypeScript `Tree` as JavaScript, with the same codegen and options.
-
-```zig
-var tree = try parser.parse(allocator, source, .{ .lang = .ts });
+var tree = try parser.parse(allocator, "const x: number = 1;", .{ .lang = .ts });
 defer tree.deinit();
 
 const result = try parser.codegen.generate(allocator, &tree, .{ .strip = true });
 defer result.deinit(allocator);
 
-std.debug.print("{s}", .{result.code});
+std.debug.print("{s}\n", .{result.code}); // const x = 1;
 ```
 
-Stripping is not a regex pass or a separate transform. The codegen skips TypeScript-only nodes and the TypeScript-only fields of shared nodes during its one walk, so every boundary case (comments, generic calls, nested template literal types) is a tree node the parser already classified.
+`generate` leaves the tree unchanged and returns the `code`, any `diagnostics`, and the source `map`.
 
-### [What stripping does not do]($section.id('what-stripping-does-not-do'))
+## [Options]($section.id('options'))
 
-A few TypeScript features emit runtime values: `enum`, `namespace`, `module`, `export =`, `import = require()`, and parameter properties. Converting them is transpilation, not stripping. Each one is reported as a `Diagnostic` and left out of the output (a parameter property keeps its plain parameter), and the rest of the file is still emitted.
+| Field        | Default     | Description                                                                                                                                         |
+| ------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `strip`      | `false`     | Drop TypeScript-only syntax, see [Type stripping](#type-stripping)                                                                                  |
+| `minify`     | `false`     | Size-reducing syntax rewrites, see [Minification](#minification)                                                                                    |
+| `format`     | `.pretty`   | `.compact` emits only the whitespace the grammar requires                                                                                           |
+| `indent`     | `2`         | Spaces per level                                                                                                                                    |
+| `quotes`     | `.preserve` | `.preserve`, `.double`, `.single`, or `.shortest`                                                                                                   |
+| `comments`   | `.some`     | Which [attached comments](/parser/ast/#comments) to print, `.some` for legal headers, JSDoc, and annotations, or `.all`, `.none`, `.line`, `.block` |
+| `source_map` | `null`      | Emit a Source Map V3, see [Source maps](#source-maps)                                                                                               |
 
-Their ambient forms (`declare enum`, `declare namespace`, `declare module`, `import type X = require(...)`) carry no runtime, so they strip silently. All other TypeScript syntax, including types, interfaces, type aliases, generics, type assertions, `satisfies`, non-null `!`, `declare`, and `abstract`, strips cleanly.
+Every option is independent, so they compose freely.
+
+## [Type stripping]($section.id('type-stripping'))
+
+`strip` prints TypeScript as JavaScript in the same walk, skipping the nodes and fields the parser already marked as TypeScript. Types, interfaces, generics, assertions, `satisfies`, and `declare` strip cleanly. Features that emit runtime code, such as `enum`, `namespace`, and parameter properties, are reported in `diagnostics` and left out, since converting them is transpilation, not stripping.
 
 ## [Minification]($section.id('minification'))
 
-`minify` applies size-reducing syntax rewrites. Combine it with `format` and `quotes` for maximum minification.
+`minify` rewrites the syntax, and combined with `.compact` and `.shortest` it is full minification.
 
 ```zig
 const result = try parser.codegen.generate(allocator, &tree, .{
@@ -232,14 +64,24 @@ const result = try parser.codegen.generate(allocator, &tree, .{
     .format = .compact,
     .quotes = .shortest,
 });
-defer result.deinit(allocator);
+// const enabled = true; const size = 1000000;
+// prints as const enabled=!0;const size=1e6
 ```
 
-The rewrites:
+- `true` and `false` become `!0` and `!1`.
+- Numbers take their shortest form, so `1000000` becomes `1e6` and `0.5` becomes `.5`.
+- `obj["foo"]` becomes `obj.foo`, and `{ "foo": x }` becomes `{ foo: x }`.
+- `</script`, `<!--`, and `-->` are escaped, so the output is safe inside a `<script>` tag.
 
-- `true` / `false` → `!0` / `!1`
-- numeric literals shortened to their shortest form (`1000000` → `1e6`, `0.5` → `.5`, etc.)
-- `obj["foo"]` → `obj.foo` when the key is a valid identifier
-- `{ "foo": x }` → `{ foo: x }` when safe
+## [Source maps]($section.id('source-maps'))
 
-Minified output is also safe to inline in a `<script>` tag. `</script`, `<!--`, and `-->` are escaped in strings and untagged template literals. Tagged templates keep their raw text, since the tag reads it.
+```zig
+const result = try parser.codegen.generate(allocator, &tree, .{
+    .source_map = .{ .source = source, .file = "out.js", .source_file_name = "in.js" },
+});
+defer result.deinit(allocator);
+
+const map = result.map.?; // the Source Map V3 fields, with `mappings` encoded
+```
+
+Mappings come from the same walk that prints the code, with columns in UTF-16 code units, the convention of browser devtools and source map libraries.

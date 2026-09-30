@@ -1,11 +1,13 @@
-import { parse, TokenKind } from "@yuku-parser/wasm";
-import { generate } from "@yuku-codegen/wasm";
-import { analyze, SymbolFlags } from "@yuku-analyzer/wasm";
+import { init } from "@yuku-engine/wasm";
+import { parse, TokenKind } from "yuku-parser";
+import { generate } from "yuku-codegen";
+import { analyze, SymbolFlags } from "yuku-analyzer";
 import { CodeJar } from "https://esm.sh/codejar@4.2.0";
 import hljs from "https://esm.sh/highlight.js@11.10.0/lib/core";
 import typescript from "https://esm.sh/highlight.js@11.10.0/lib/languages/typescript";
 
 hljs.registerLanguage("typescript", typescript);
+await init();
 
 const $ = (id) => document.getElementById(id);
 
@@ -741,7 +743,7 @@ function render() {
       comments: $("comments").value,
       indent: +$("indent").value,
     });
-    outView.innerHTML = hl(out, "typescript");
+    outView.innerHTML = hl(out.code, "typescript");
   } catch (e) {
     outView.textContent = String(e);
   }
@@ -1002,9 +1004,7 @@ document.addEventListener("selectionchange", () => {
 codeView.addEventListener("click", () => mapCaret(true, true));
 codeView.addEventListener("blur", removeHit);
 
-// CodeJar's addClosing inserts the closer after the caret but never types over
-// it, so typing the matching closer would duplicate the character. Move the
-// caret instead when the next character already is that closer.
+// CodeJar's addClosing never types over a closer, so step past an existing one instead
 const CLOSERS = ")]}'\"";
 codeView.addEventListener("keydown", (e) => {
   if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1163,7 +1163,7 @@ async function showVersion() {
     return;
   }
   try {
-    const url = import.meta.resolve("@yuku-parser/wasm");
+    const url = import.meta.resolve("yuku-parser");
     const res = await fetch(url);
     const match = res.headers.get("x-esm-path")?.match(/@(\d[^/]*)/);
     if (match) {

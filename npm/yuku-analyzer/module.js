@@ -1,22 +1,9 @@
-// one analyzed file, its AST plus a lazily built semantic graph
-import binding from "./binding.js";
-import { decode, SymbolFlags, TokenKind } from "./decode.js";
+import { analyze as analyzeSource, langFromPath, sourceTypeFromPath } from "yuku-engine";
+import { decode, SymbolFlags } from "./decode.js";
 import { walkModule, walkModuleAsync } from "./walk.js";
 
 const _enc = new TextEncoder();
 const _dec = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
-
-export function langFromPath(path) {
-  if (path.endsWith(".d.ts") || path.endsWith(".d.mts") || path.endsWith(".d.cts")) return "dts";
-  if (path.endsWith(".tsx")) return "tsx";
-  if (path.endsWith(".ts") || path.endsWith(".mts") || path.endsWith(".cts")) return "ts";
-  if (path.endsWith(".jsx")) return "jsx";
-  return "js";
-}
-
-export function sourceTypeFromPath(path) {
-  return path.endsWith(".cjs") || path.endsWith(".cts") ? "commonjs" : "module";
-}
 
 class Scope {
   #sem;
@@ -269,7 +256,7 @@ export class Module {
     this.path = path;
     this.source = typeof source === "string" ? source : _dec.decode(source);
     this.#r = decode(
-      binding.analyze(typeof source === "string" ? _enc.encode(source) : source, {
+      analyzeSource(typeof source === "string" ? _enc.encode(source) : source, {
         lang: options.lang ?? langFromPath(path),
         sourceType: options.sourceType ?? sourceTypeFromPath(path),
         preserveParens: options.preserveParens,
@@ -295,25 +282,29 @@ export class Module {
   }
 
   get scopes() {
-    return (this.#scopes ??= this.#rows(Scope, this.#sem.scope.count));
+    return this.#scopes ?? (this.#scopes = this.#rows(Scope, this.#sem.scope.count));
   }
   get symbols() {
-    return (this.#symbols ??= this.#rows(Symbol, this.#sem.symbol.count));
+    return this.#symbols ?? (this.#symbols = this.#rows(Symbol, this.#sem.symbol.count));
   }
   get references() {
-    return (this.#references ??= this.#rows(Reference, this.#sem.reference.count));
+    return (
+      this.#references ?? (this.#references = this.#rows(Reference, this.#sem.reference.count))
+    );
   }
   get imports() {
-    return (this.#imports ??= this.#rows(Import, this.#sem.import.count));
+    return this.#imports ?? (this.#imports = this.#rows(Import, this.#sem.import.count));
   }
   get exports() {
-    return (this.#exports ??= this.#rows(Export, this.#sem.export.count));
+    return this.#exports ?? (this.#exports = this.#rows(Export, this.#sem.export.count));
   }
   get moduleFlags() {
     return this.#sem.moduleFlags;
   }
   get unresolvedReferences() {
-    return (this.#unresolved ??= this.references.filter((r) => r.symbol === null));
+    return (
+      this.#unresolved ?? (this.#unresolved = this.references.filter((r) => r.symbol === null))
+    );
   }
 
   get rootScope() {
@@ -348,7 +339,6 @@ export class Module {
     return this.scopes[this.#sem.nodeScope(index)];
   }
 
-  // structural parent, or null at the root or for a foreign node
   parentOf(node) {
     // the synthesized hashbang has no native index, its parent is the program
     if (node?.type === "Hashbang") {
@@ -395,7 +385,6 @@ export class Module {
     return [...names];
   }
 
-  // outer bindings a function closes over, deduped by symbol
   capturesOf(fn) {
     const index = this.#r.indexOf(fn);
     if (index === undefined) {
@@ -549,4 +538,4 @@ export class Module {
   }
 }
 
-export { SymbolFlags, TokenKind };
+export { SymbolFlags };
