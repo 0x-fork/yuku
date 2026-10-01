@@ -1,8 +1,12 @@
-# AGENTS.md
+# Yuku
 
-This document defines the coding style and principles that every contribution to this codebase must follow. It is written for human and AI agents alike. Read it once, then keep it close. The rules below are not suggestions.
+A JavaScript and TypeScript toolchain written in Zig.
 
-## Design Goals
+## Code
+
+How code is written, and what it may cost. These rules hold in any codebase.
+
+### Design Goals
 
 Three goals guide every decision, in order of priority:
 
@@ -12,7 +16,7 @@ Three goals guide every decision, in order of priority:
 
 All three matter. Good style advances all three. Style is more than readability. Readability is table stakes, a means rather than an end. Where understanding is missing, style fills the gap.
 
-## Simplicity and Elegance
+### Simplicity and Elegance
 
 Simplicity is not a concession to the other goals. It is the "super idea" that solves multiple constraints simultaneously to achieve elegance.
 
@@ -20,22 +24,22 @@ Simplicity is not the first attempt but the hardest revision. Spend mental energ
 
 > "Simplicity and elegance are unpopular because they require hard work and discipline to achieve." Edsger Dijkstra
 
-## Zero Technical Debt
+### Zero Technical Debt
 
 Do it right the first time. The second time may never come, and steady incremental progress depends on knowing that what shipped is solid.
 
 Do not allow potential latency spikes, exponential-complexity algorithms, or other showstoppers to slip through. When a problem is discovered, solve it. Do not defer.
 
-## Safety
+### Safety
 
-### Control Flow
+#### Control Flow
 
 - Use only very simple, explicit control flow. Avoid recursion where iteration suffices; when recursion is unavoidable, give it a bounded depth and assert that bound. Bounded execution must be guaranteed.
 - Use only a minimum of excellent abstractions, and only when they make the best sense of the domain. Abstractions are never zero cost, and every abstraction introduces the risk of leaking.
 - **Put a limit on everything.** All loops and all queues must have a fixed upper bound to prevent infinite loops or tail-latency spikes. Where a loop cannot terminate (e.g. an event loop), assert this.
 - Use explicitly-sized integer types like `u32`. Avoid architecture-specific types like `usize`. The one accepted exception is the seam with the Zig standard library: `std.ArrayList.len`, slice indices into `[]const u8`, and similar interop are typed `usize` by the language. Keep `u32` everywhere we own the type, and limit `usize` to those boundaries (no `@intCast` chains that just propagate the boundary outward).
 
-### Assertions
+#### Assertions
 
 Assertions detect programmer errors. Unlike operating errors, which are expected and must be handled, assertion failures are unexpected, and crashing is the only correct response. Assertions downgrade catastrophic correctness bugs into liveness bugs. They are a force multiplier for fuzzing.
 
@@ -52,31 +56,25 @@ Assertions detect programmer errors. Unlike operating errors, which are expected
   - Write the code and comments to explain and justify the model to your reviewer.
   - Use fuzzing as the *final* line of defense.
 
-### Memory
+#### Memory
 
 - **Allocate with intent, not by reflex.** Prefer arena allocators with a well-defined lifetime over per-object alloc/free. An arena makes the allocation pattern visible at the call site, eliminates use-after-free, and frees in one step.
 - **Size buffers ahead of time.** When the upper bound of a collection is known or can be estimated, reserve capacity once instead of growing repeatedly. This keeps the data plane on a predictable hot path.
 - **Reuse, don't reallocate.** Scratch buffers used during a single pass should be reset between iterations, not freed and re-grown. Hold them on a parent struct so reuse is the default.
 - Long-lived caches and pools must have an explicit upper bound. Unbounded growth is a latency bug waiting to happen.
 
-### Scope and Function Shape
+#### Scope and Function Shape
 
 - Declare variables at the **smallest possible scope**. **Minimize the number of variables in scope** to reduce the probability of misuse.
 - Good function shape is the inverse of an hourglass: a few parameters, a simple return type, and meaty logic between the braces.
 - **Centralize control flow.** Keep `switch`/`if` decisions in the parent and move non-branchy logic to helpers. *Push `if`s up and `for`s down.*
 - **Centralize state manipulation.** Let the parent function hold state in local variables and use helpers to compute what should change, rather than mutate directly. Keep leaf functions pure.
 
-### Compiler
+#### Compiler
 
 - Use the toolchain's **strictest warning setting** from day one. Treat all warnings as errors. This applies equally to Zig, TypeScript, and any other language used in this repository.
 
-### Runtime Baseline
-
-- Shipped JavaScript runs on **one floor**: ECMAScript 2020, on the runtime version in the root `package.json` `engines.node`. Tools downstream support older runtimes than we might, and a newer syntax or built-in breaks them silently. Every package declares that same floor, and CI runs the packages on exactly that version.
-- The WebAssembly build also needs WebAssembly SIMD and reference types, which `@yuku-engine/wasm` declares as its own, higher floor.
-- **Raising the floor is a breaking change.** Change the root `engines.node` on purpose, let every package follow it, and say so in the release notes. Never raise it implicitly by reaching for a newer feature.
-
-### Branches and Conditions
+#### Branches and Conditions
 
 - Compound conditions are hard to verify. Split them into nested `if/else` branches. Split complex `else if` chains into `else { if { } }` trees. This makes branches and cases explicit.
 - Consider whether every `if` needs a matching `else` so both positive and negative cases are handled or asserted.
@@ -92,17 +90,17 @@ Assertions detect programmer errors. Unlike operating errors, which are expected
 
   over the inverted form (`if (index >= length)`).
 
-### Error Handling
+#### Error Handling
 
 - **All errors must be handled.** A majority of catastrophic failures come from incorrect handling of non-fatal errors that were *explicitly* signaled in software. Silently swallowing an error is worse than crashing. Test your error paths.
 - Distinguish operating errors (expected, recover and report) from programmer errors (unexpected, assert and crash). Mixing the two confuses callers.
 
-### Motivation and Defaults
+#### Motivation and Defaults
 
 - **Always say why.** Every decision should include rationale. Explaining *why* increases the reader's understanding, encourages compliance, and shares criteria for future decisions.
 - **Explicitly pass options at the call site** instead of relying on library defaults. Prefer `@prefetch(a, .{ .cache = .data, .rw = .read, .locality = 3 })` over `@prefetch(a, .{})`. This improves readability and prevents latent bugs if the library changes its defaults.
 
-## Performance
+### Performance
 
 > "The lack of back-of-the-envelope performance sketches is the root of all evil."
 
@@ -114,7 +112,7 @@ Assertions detect programmer errors. Unlike operating errors, which are expected
 - **Let the CPU be a sprinter** doing the 100m. Be predictable. Don't force it to change lanes. Give it large enough chunks of work. This is batching, again.
 - **Be explicit. Minimize dependence on the compiler.** Extract hot loops into stand-alone functions with primitive arguments (no `self`). The compiler doesn't need to prove it can cache fields in registers, and a human reader can spot redundant computations more easily.
 
-### Hot Loops
+#### Hot Loops
 
 The data plane is a small amount of code executed an enormous number of times. One cycle saved there is a cycle saved millions of times over. Treat cycles in hot loops as the budget they are:
 
@@ -127,11 +125,11 @@ The data plane is a small amount of code executed an enormous number of times. O
 - **Batch validation at the boundary.** Validate once before the loop so the loop body can assume, with an assertion, rather than re-check.
 - **Measure, then trust the measurement.** Optimize against a stable benchmark: warmed up, repeated, compared by median, run in release mode on a quiet machine. Record the baseline before touching anything, and keep every change that survives only if the numbers say so. Profile to find where the cycles go rather than guessing.
 
-## Developer Experience
+### Developer Experience
 
 > "There are only two hard things in Computer Science: cache invalidation, naming things, and off-by-one errors."
 
-### Naming
+#### Naming
 
 - **Get the nouns and verbs just right.** Great names capture what a thing is or does and reveal that you understand the domain. Take time to find names where the whole exceeds the sum of the parts.
 - **Do not abbreviate** variable names, except primitive integers used in sorts or matrix calculations. Use long-form flags in scripts (`--force`, not `-f`). Single-letter flags are for interactive use.
@@ -161,7 +159,6 @@ The data plane is a small amount of code executed an enormous number of times. O
 - **Think about how names will be used outside the code**, in docs, conversation, derived identifiers. A noun usually beats an adjective or present participle. `parser.scratch` reads cleanly as a section heading, while `parser.parsing` needs rephrasing. Nouns also compose more clearly: `config.statements_max`.
 - **Use named arguments** (options structs) when arguments can be mixed up. A function taking two `u64`s must use an options struct. If an argument can be `null`, name it so that `null` is meaningful at the call site.
 - Singleton dependencies (allocator, logger) have unique types and should be threaded through constructors *positionally*, from most general to most specific.
-- **Write descriptive commit messages** that inform and delight the reader. A pull-request description is not stored in the repository and is invisible in `git blame`, so it is not a replacement for a commit message.
 - **Say why.** Code alone is not documentation. Comments explain *why*, not *what* (the code already says what). Show your workings only when the next reader would otherwise guess wrong.
 - **Don't bloat with comments.** Default to no comment. Only add one when the reason behind the code is genuinely non-obvious: a hidden constraint, a subtle invariant, a workaround for a real bug. If removing the comment wouldn't confuse a future reader, don't write it. Never restate the line below.
 - **Comments are timeless, not situational.** Describe the code as it is, never its history or the change that produced it. No `no longer`, `we now`, `was wrong`, `the old way`, `KNOWN GAP`, or one-session narrative. A comment a future reader cannot understand without knowing what the code used to be is dead weight. When behavior changes, update or delete the comment, do not narrate the change.
@@ -170,7 +167,7 @@ The data plane is a small amount of code executed an enormous number of times. O
 - **Tests need a header.** A short comment at the top of a non-trivial test states the goal and methodology so a reader can get up to speed or skip past.
 - **No em dashes, semicolons, or colons in comments.** Split into separate sentences instead. They invite run-on prose that obscures the point.
 
-### Cache Invalidation
+#### Cache Invalidation
 
 - **Don't duplicate variables or take aliases** to them. State gets out of sync.
 - If a function argument is more than ~16 bytes and shouldn't be copied, pass it as `*const`. This catches bugs where the caller makes an accidental stack copy before the call.
@@ -210,7 +207,7 @@ The data plane is a small amount of code executed an enormous number of times. O
 - **Simpler signatures and return types reduce dimensionality at the call site.** Dimensionality is viral, propagating through the call chain. `void` beats `bool`, `bool` beats `u64`, `u64` beats `?u64`, and `?u64` beats `!u64`.
 - **Group resource allocation and deallocation visually** with newlines: blank line before the allocation, blank line after the matching `defer`. Leaks become easier to spot.
 
-### Off-By-One Errors
+#### Off-By-One Errors
 
 - The usual suspects are casual interactions between an `index`, a `count`, and a `size`. They are primitive integers but should be treated as distinct types:
   - `index` to `count`: add one (indexes are 0-based, counts are 1-based).
@@ -220,7 +217,7 @@ The data plane is a small amount of code executed an enormous number of times. O
 
 - **Show your intent with division.** Use `@divExact()`, `@divFloor()`, or `div_ceil()` so the reader knows you considered the rounding cases.
 
-### Formatting
+#### Formatting
 
 - Run the standard formatter (`zig fmt` for Zig sources, the project's configured formatter for TypeScript/JavaScript sources).
 - **4 spaces of indentation**, not 2. More obvious at a distance.
@@ -230,11 +227,11 @@ The data plane is a small amount of code executed an enormous number of times. O
 
 - Always brace `if` statements unless they fit on a single line. This is defense in depth against "goto fail;" bugs.
 
-### Dependencies
+#### Dependencies
 
 **Zero dependencies** beyond the language toolchain. Dependencies invite supply-chain attacks, safety risk, performance risk, and slow installs. For foundational code, every cost is amplified throughout the stack above it.
 
-### Tooling
+#### Tooling
 
 Tools have costs. A small standardized toolbox is simpler to operate than an array of specialized instruments each with its own manual. Invest in your primary toolchain so new problems can be tackled with minimal accidental complexity.
 
@@ -244,11 +241,21 @@ When writing a script, prefer one of the codebase's primary languages (Zig or Ty
 
 Standardization reduces dimensionality as the team grows. Slower in the short term, faster in the long term.
 
-## Testing
+## Project
+
+How this repository works. The runtime it ships to, where its tests go, and how a change lands.
+
+### Runtime Baseline
+
+- Shipped JavaScript runs on **one floor**: ECMAScript 2020, on the runtime version in the root `package.json` `engines.node`. Tools downstream support older runtimes than we might, and a newer syntax or built-in breaks them silently. Every package declares that same floor, and CI runs the packages on exactly that version.
+- The WebAssembly build also needs WebAssembly SIMD and reference types, which `@yuku-engine/wasm` declares as its own, higher floor.
+- **Raising the floor is a breaking change.** Change the root `engines.node` on purpose, let every package follow it, and say so in the release notes. Never raise it implicitly by reaching for a newer feature.
+
+### Testing
 
 Test at the layer that changed, in the form that layer already uses. Every layer has a home for new cases, so a fix almost never needs a new test file. A new file is for a new capability or topic, never for a single bug.
 
-### Where Tests Go
+#### Where Tests Go
 
 | What changed | Where the test goes |
 | --- | --- |
@@ -260,6 +267,16 @@ Test at the layer that changed, in the form that layer already uses. Every layer
 | The wasm packages | `test/wasm/`, as smoke tests only |
 | Zig internals the JS API cannot reach (traverser, scopes, walk order, allocation failure) | `src/parser/testing/cases/` |
 | A small pure Zig helper | An inline `test` block next to the function |
+
+### Changes
+
+- **One change, one purpose.** The tree builds and every suite passes at every commit, and callers update in the same change as the API they use.
+- **Commit subjects follow Conventional Commits.** `type(scope): what changed`, lowercase, imperative, under seventy-two characters. The scope names the area touched, such as `parser`, `codegen`, or `lexer`, and is left out when a change spans areas.
+- **The type is a promise to the release notes.** Release notes are generated from commit subjects. `feat`, `fix`, and `perf` are for changes a user can observe, and `refactor`, `test`, `docs`, and `ci` for changes they cannot. A `!` after the type marks a breaking change, and every breaking change carries one.
+- **The subject says what, the body says why.** Write a body only when the subject cannot say why, in plain sentences wrapped at seventy-two columns. A pull-request description is not stored in the repository and is invisible in `git blame`, so it is not a replacement for a commit message.
+- **A pull-request title is a commit subject.** Squash-merging makes it one, so it follows the same rules.
+- **No attribution trailers, no tool links.** Not in commits, not in pull requests.
+- **Delete, do not deprecate.** Unused code and dependencies are removed. Removing a public export is a breaking change and is marked as one.
 
 ---
 
