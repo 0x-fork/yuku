@@ -100,26 +100,29 @@
     {
       "severity": "error",
       "message": "Keywords cannot contain escape characters",
+      "path": null,
       "start": 4,
       "end": 14,
-      "help": "Remove the escape characters",
-      "labels": []
+      "labels": [],
+      "help": "Remove the escape characters"
     },
     {
       "severity": "error",
       "message": "Keywords cannot contain escape characters",
+      "path": null,
       "start": 45,
       "end": 55,
-      "help": "Remove the escape characters",
-      "labels": []
+      "labels": [],
+      "help": "Remove the escape characters"
     },
     {
       "severity": "error",
       "message": "Keywords cannot contain escape characters",
+      "path": null,
       "start": 73,
       "end": 83,
-      "help": "Remove the escape characters",
-      "labels": []
+      "labels": [],
+      "help": "Remove the escape characters"
     }
   ]
 }

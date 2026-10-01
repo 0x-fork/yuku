@@ -9,6 +9,23 @@ function firstSpan(source: string) {
   return [first!.start, first!.end];
 }
 
+describe("path", () => {
+  test("names the file in each diagnostic and sets lang and sourceType", () => {
+    const { diagnostics } = parse(`let x: number = ;`, { path: "src/a.cts" });
+    expect(diagnostics.map((d) => d.path)).toEqual(["src/a.cts"]);
+    expect(parse(`let x = ;`).diagnostics[0]!.path).toBeNull();
+    expect(parse(`return <div />;`, { path: "a.cjs" }).diagnostics).toHaveLength(1);
+    expect(parse(`return 1;`, { path: "a.cjs" }).diagnostics).toEqual([]);
+  });
+
+  test("an unknown lang or sourceType throws", () => {
+    // @ts-expect-error an invalid lang
+    expect(() => parse(`x`, { lang: "typescript" })).toThrow("`lang` must be");
+    // @ts-expect-error an invalid sourceType
+    expect(() => parse(`x`, { sourceType: "esm" })).toThrow("`sourceType` must be");
+  });
+});
+
 describe("diagnostics", () => {
   test("a lexical diagnostic points at the cursor", () => {
     expect(firstSpan("let x = 0x_ab")).toEqual([10, 11]);

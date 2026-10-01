@@ -347,26 +347,29 @@
     {
       "severity": "error",
       "message": "A type-only import can specify a default import or named bindings, but not both",
+      "path": null,
       "start": 120,
       "end": 139,
-      "help": "Split this into one 'import type' per clause.",
-      "labels": []
+      "labels": [],
+      "help": "Split this into one 'import type' per clause."
     },
     {
       "severity": "error",
       "message": "A type-only import can specify a default import or named bindings, but not both",
+      "path": null,
       "start": 162,
       "end": 192,
-      "help": "Split this into one 'import type' per clause.",
-      "labels": []
+      "labels": [],
+      "help": "Split this into one 'import type' per clause."
     },
     {
       "severity": "error",
       "message": "A type-only import can specify a default import or named bindings, but not both",
+      "path": null,
       "start": 215,
       "end": 243,
-      "help": "Split this into one 'import type' per clause.",
-      "labels": []
+      "labels": [],
+      "help": "Split this into one 'import type' per clause."
     }
   ]
 }

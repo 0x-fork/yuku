@@ -1,18 +1,15 @@
 # yuku-parser
 
-A high-performance, spec-compliant JavaScript and TypeScript parser, part of [Yuku](https://yuku.fyi).
+A fast, spec-compliant JavaScript and TypeScript parser, part of [Yuku](https://yuku.fyi).
 
 - [Install](#install)
 - [Usage](#usage)
-- [ESTree / TypeScript-ESTree](#estree--typescript-estree)
-- [AST types](#ast-types)
+- [The AST](#the-ast)
 - [Options](#options)
-- [Path helpers](#path-helpers)
 - [Result](#result)
+- [Diagnostics](#diagnostics)
 - [Comments](#comments)
 - [Tokens](#tokens)
-- [Walking the AST](#walking-the-ast)
-- [Semantic analysis](#semantic-analysis)
 
 ## Install
 
@@ -20,7 +17,7 @@ A high-performance, spec-compliant JavaScript and TypeScript parser, part of [Yu
 npm install yuku-parser
 ```
 
-It runs on a native binary for each platform. In browsers, edge runtimes, and on platforms without one, it runs on [`@yuku-engine/wasm`](https://www.npmjs.com/package/@yuku-engine/wasm).
+It runs on a native binary for each platform, and on [`@yuku-engine/wasm`](https://www.npmjs.com/package/@yuku-engine/wasm) in browsers, edge runtimes, and on platforms without one.
 
 ## Usage
 
@@ -30,123 +27,76 @@ import { parse } from "yuku-parser";
 const { program, comments, diagnostics } = parse("const x = 1 + 2;");
 ```
 
-## ESTree / TypeScript-ESTree
+## The AST
 
-For JavaScript and JSX, the AST is fully conformant with the [ESTree](https://github.com/estree/estree) specification, identical to what [Acorn](https://www.npmjs.com/package/acorn) produces. For TypeScript, it conforms to the [TypeScript-ESTree](https://www.npmjs.com/package/@typescript-eslint/typescript-estree) format used by `@typescript-eslint`. For both, it matches the AST [Oxc](https://oxc.rs) produces.
+[ESTree](https://github.com/estree/estree) for JavaScript and JSX, identical to [Acorn](https://www.npmjs.com/package/acorn), and [TypeScript-ESTree](https://www.npmjs.com/package/@typescript-eslint/typescript-estree) for TypeScript, matching [Oxc](https://oxc.rs) for both. On top of the specs, it carries stage 3 [decorators](https://github.com/tc39/proposal-decorators), [import defer](https://github.com/tc39/proposal-defer-import-eval) and [import source](https://github.com/tc39/proposal-source-phase-imports) as `phase` on imports and `ImportExpression`, and the `hashbang` of `Program`.
 
-On top of the base specs, the AST carries:
-
-- Stage 3 [decorators](https://github.com/tc39/proposal-decorators).
-- Stage 3 [import defer](https://github.com/tc39/proposal-defer-import-eval) and [import source](https://github.com/tc39/proposal-source-phase-imports). The dynamic forms are an `ImportExpression` with `phase` set to `"defer"` or `"source"`.
-- A `hashbang` field on `Program` for `#!/usr/bin/env node` lines.
-
-Any other deviation from Acorn's ESTree or `@typescript-eslint`'s TypeScript-ESTree is a bug.
-
-## AST types
-
-Every node type is exported, from the `Node` union down to individual types, listed in the [type definitions](https://github.com/yuku-toolchain/yuku/blob/main/npm/yuku-types/index.d.ts).
+Every node type is exported, listed in the [type definitions](https://github.com/yuku-toolchain/yuku/blob/main/npm/yuku-types/index.d.ts).
 
 ```ts
 import type { Expression, Identifier, Node, Statement } from "yuku-parser";
 ```
 
+To walk, build, and check nodes, use [`yuku-ast`](https://www.npmjs.com/package/yuku-ast). For scopes and bindings, use [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer).
+
 ## Options
 
-All options are optional.
-
 ```js
-parse(source, { lang: "tsx", sourceType: "module" });
+parse(source, { path: "src/app.tsx" });
 ```
 
-| Option           | Values                                    | Default    | Description                                                                                                                                                                                                                     |
-| ---------------- | ----------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sourceType`     | `"module"`, `"script"`, `"commonjs"`      | `"module"` | Module mode enables `import`/`export`, `import.meta`, top-level `await`, and strict mode. CommonJS mode parses script code whose top level behaves like a function body, allowing top-level `return`, `new.target`, and `using`. |
-| `lang`           | `"js"`, `"ts"`, `"jsx"`, `"tsx"`, `"dts"` | `"js"`     | The syntax extensions to enable.                                                                                                                                                                                                |
-| `preserveParens` | `true`, `false`                           | `true`     | Keep `ParenthesizedExpression` nodes. When off, only the inner expression is kept.                                                                                                                                             |
-| `semanticErrors` | `true`, `false`                           | `false`    | Also report semantic errors. See [Semantic errors](#semantic-errors).                                                                                                                                                           |
-| `attachComments` | `true`, `false`                           | `false`    | Also attach each comment to its host node. See [Comments](#comments).                                                                                                                                                           |
-| `tokens`         | `true`, `false`                           | `false`    | Keep every token in `result.tokens`. See [Tokens](#tokens).                                                                                                                                                                     |
+| Option           | Values                                    | Default    | Description                                                                                        |
+| ---------------- | ----------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `path`           | a file path                               | none       | Names the file in diagnostics. `lang` and `sourceType` default from its extension.                 |
+| `lang`           | `"js"`, `"jsx"`, `"ts"`, `"tsx"`, `"dts"` | `"js"`     | The syntax to parse. `.d.ts`, `.tsx`, `.ts`, and `.jsx` paths select their own.                    |
+| `sourceType`     | `"module"`, `"script"`, `"commonjs"`      | `"module"` | `"commonjs"` allows top-level `return`, and `.cjs` and `.cts` paths select it.                     |
+| `preserveParens` | `true`, `false`                           | `true`     | Keep `ParenthesizedExpression` nodes.                                                              |
+| `semanticErrors` | `true`, `false`                           | `false`    | Also report the early errors that need scopes, such as redeclarations and `break` outside a loop.  |
+| `attachComments` | `true`, `false`                           | `false`    | Also attach each comment to its node. See [Comments](#comments).                                   |
+| `tokens`         | `true`, `false`                           | `false`    | Keep every token. See [Tokens](#tokens).                                                           |
 
-## Path helpers
-
-`lang` and `sourceType` can be inferred from a file path. `.d.ts`, `.tsx`, `.ts`, and `.jsx` select their language, and `.cjs` and `.cts` select CommonJS.
-
-```js
-import { langFromPath, sourceTypeFromPath } from "yuku-parser";
-
-langFromPath("app.tsx");        // "tsx"
-langFromPath("types.d.ts");     // "dts"
-sourceTypeFromPath("app.cjs");  // "commonjs"
-sourceTypeFromPath("app.mjs");  // "module"
-```
+An unknown `lang` or `sourceType` throws a `TypeError`. `langFromPath(path)` and `sourceTypeFromPath(path)` return the values a path implies.
 
 ## Result
-
-`parse` returns a `ParseResult`.
 
 ```ts
 interface ParseResult {
   program: Program;
-  comments: Comment[]; // every comment in source order
-  tokens?: TokenList;  // with tokens: true
+  comments: Comment[];
+  tokens?: TokenList; // with tokens: true
   diagnostics: Diagnostic[];
 }
 ```
 
-The parser recovers from errors, so a parse with diagnostics still returns a tree of everything it could read.
+The parser recovers from errors, so a result with diagnostics still holds a tree of everything it could read.
 
-### Diagnostics
+## Diagnostics
+
+Every Yuku package reports diagnostics in one shape.
 
 ```ts
 interface Diagnostic {
   severity: "error" | "warning" | "hint" | "info";
   message: string;
-  help: string | null; // a fix suggestion
+  path: string | null; // the path option
   start: number;       // UTF-16 offsets, like nodes
   end: number;
-  labels: { start: number; end: number; message: string }[]; // related code
+  labels: { start: number; end: number; message: string }[];
+  help: string | null;
 }
-```
-
-Every Yuku package reports diagnostics in this shape.
-
-### Semantic errors
-
-The parser reports syntax errors. Errors that need scopes and bindings, such as duplicate `let` declarations, `break` outside a loop, and unresolved private fields, come from a separate and cheap semantic pass, enabled with `semanticErrors`. Leave it off when a linter or type checker already validates the code.
-
-```js
-parse(`let x = 1; let x = 2;`, { semanticErrors: true }).diagnostics;
-// includes "Identifier 'x' has already been declared"
 ```
 
 ## Comments
 
-`result.comments` always holds every comment in source order, with its source span.
-
 ```js
 const { comments } = parse(`// a line comment\nconst x = 1; /* a block comment */`);
-
-for (const c of comments) {
-  console.log(c.type, JSON.stringify(c.value), c.start, c.end);
-}
-// Line " a line comment" 0 17
-// Block " a block comment " 31 52
+// [
+//   { type: "Line", value: " a line comment", start: 0, end: 17 },
+//   { type: "Block", value: " a block comment ", start: 31, end: 52 },
+// ]
 ```
 
-```ts
-interface Comment {
-  type: "Line" | "Block";
-  value: string; // body without delimiters
-  start: number; // delimiters included
-  end: number;
-}
-```
-
-The span covers the whole comment, so `source.slice(c.start, c.end)` returns the raw text.
-
-### Attaching comments to nodes
-
-`attachComments: true` also hangs each comment on the AST node it sits next to, read off `node.comments`. Attached comments move with their node through transforms, which is what [`yuku-codegen`](https://www.npmjs.com/package/yuku-codegen#comments) prints from.
+`attachComments: true` also hangs each comment on the node it sits next to, which [`yuku-codegen`](https://www.npmjs.com/package/yuku-codegen#comments) prints from, so comments move with their nodes.
 
 ```js
 const { program } = parse(`// header\nfunction foo() {} // trailing`, { attachComments: true });
@@ -158,20 +108,11 @@ program.body[0].comments;
 // ]
 ```
 
-```ts
-interface AttachedComment {
-  type: "Line" | "Block";
-  position: "before" | "after" | "inside";
-  sameLine: boolean;
-  value: string; // body without delimiters
-}
-```
-
-`position` is where the comment sits relative to its host: `"before"` leads it, `"after"` trails it, and `"inside"` is interior to an otherwise empty host, like `function f() { /* hi */ }`. `sameLine` is true when the comment shares a source line with the host's adjacent edge, the start for `"before"` and the end for `"after"`, and always false for `"inside"`.
+`position` is `"before"`, `"after"`, or `"inside"` an otherwise empty node, such as `function f() { /* hi */ }`.
 
 ## Tokens
 
-`tokens: true` keeps every token the parser consumed. The result carries a `TokenList`, a view over the parser's token table. Nothing is decoded up front, a token is an index, and each accessor is one typed-array read.
+`tokens: true` keeps every token in a `TokenList`, a view over the parser's token table where a token is an index.
 
 ```js
 import { parse, TokenKind } from "yuku-parser";
@@ -184,62 +125,37 @@ for (let i = 0; i < tokens.length; i++) {
 ```
 
 ```js
-tokens.kind(i)            // one of the 160 kinds in TokenKind
-tokens.text(i)            // source text, a string literal keeps its quotes
-tokens.start(i)           // UTF-16 offsets, like nodes
+tokens.kind(i)                      // one of TokenKind
+tokens.text(i)                      // its source text
+tokens.start(i)                     // UTF-16 offsets
 tokens.end(i)
 
-tokens.isKeyword(i)       // reserved words and contextual keywords
-tokens.isReserved(i)      // reserved unconditionally or in strict mode
-tokens.isUnconditionallyReserved(i)   // never an identifier
-tokens.isStrictModeReserved(i)        // let, static, implements, ...
-tokens.isIdentifierLike(i)            // an identifier or any keyword
+tokens.isKeyword(i)
+tokens.isReserved(i)                // reserved unconditionally or in strict mode
+tokens.isUnconditionallyReserved(i)
+tokens.isStrictModeReserved(i)
+tokens.isIdentifierLike(i)          // an identifier or any keyword
 tokens.isNumericLiteral(i)
 tokens.isBinaryOperator(i)
 tokens.isLogicalOperator(i)
 tokens.isUnaryOperator(i)
 tokens.isAssignmentOperator(i)
-tokens.precedence(i)      // binary precedence, 0 when none
+tokens.precedence(i)                // binary precedence, 0 when none
 
-tokens.newlineBefore(i)   // a line terminator precedes it, what ASI looks at
-tokens.escaped(i)         // async is an async token with this set
-tokens.invalidEscape(i)   // a template chunk whose cooked value is undefined
-tokens.loneSurrogate(i)   // a string with an unpaired surrogate
-```
+tokens.newlineBefore(i)             // what ASI reads
+tokens.escaped(i)
+tokens.invalidEscape(i)             // a template chunk whose cooked value is undefined
+tokens.loneSurrogate(i)
 
-Every node other than `Program`, `TemplateElement`, and `JSXEmptyExpression` starts on a token start and ends on a token end, so a node's tokens are a contiguous run. The queries take a node and answer with an index, `-1` when there is none. They are binary searches, so they replace a token store without building one.
-
-```js
-tokens.range(node)   // [from, to) of the tokens inside the node, empty for a node inside one token
+tokens.range(node)                  // [from, to) of the tokens inside a node
 tokens.first(node)
 tokens.last(node)
-tokens.before(node)  // last token ending at or before it, also takes an offset
-tokens.after(node)   // first token starting at or after it, also takes an offset
-tokens.at(offset)    // the token containing an offset
+tokens.before(nodeOrOffset)         // the last token ending at or before it
+tokens.after(nodeOrOffset)          // the first token starting at or after it
+tokens.at(offset)                   // the token containing an offset
 ```
 
-Tokens are as the parser resolved them: a regex is one `RegexLiteral`, and the `>>` closing a nested generic is two `GreaterThan`. Comments are not tokens. The kinds are listed in [tokens.d.ts](https://github.com/yuku-toolchain/yuku/blob/main/npm/yuku-types/tokens.d.ts).
-
-Why an index and not an array of objects? On a 1 MB file, about 215,000 tokens, `tokens: true` adds 1 ms to the parse and scanning every `kind(i)` another 0.4 ms. An object per token would add 8 ms and 20 to 50 MB of heap, which is what tokens cost in espree, acorn, and Babel, and 70 ms in typescript-estree.
-
-## Walking the AST
-
-[`yuku-ast`](https://www.npmjs.com/package/yuku-ast) walks the AST with typed visitors and in-place mutation, and builds and checks nodes.
-
-```js
-import { parse } from "yuku-parser";
-import { walk } from "yuku-ast";
-
-walk(parse(`console.log("hello");`).program, {
-  Identifier(node) {
-    console.log(node.name);
-  },
-});
-```
-
-## Semantic analysis
-
-[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) adds scopes, symbols, resolved references, closure analysis, and cross-file module linking, computed natively in the same pass as the parse.
+The queries answer with an index, or `-1` when there is none. Tokens are as the parser resolved them, so a regex is one `RegexLiteral`, and comments are not tokens. The kinds are listed in [tokens.d.ts](https://github.com/yuku-toolchain/yuku/blob/main/npm/yuku-types/tokens.d.ts).
 
 ## License
 

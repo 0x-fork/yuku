@@ -12,10 +12,11 @@
     {
       "severity": "error",
       "message": "Expected 'class' keyword, but found 'abstract'",
+      "path": null,
       "start": 22,
       "end": 30,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

@@ -1,9 +1,9 @@
 import { Analyzer } from "./analyzer.js";
 
 export { Analyzer };
-export { SymbolFlags } from "./module.js";
+export { BindingFlags } from "./decode.js";
 
 export function analyze(source, options = {}) {
   const { path = "input.js", ...rest } = options;
-  return new Analyzer().addFile(path, source, rest);
+  return new Analyzer().setFile(path, source, rest);
 }

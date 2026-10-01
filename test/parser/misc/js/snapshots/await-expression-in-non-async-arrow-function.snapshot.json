@@ -55,10 +55,11 @@
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found 'promise'",
+      "path": null,
       "start": 39,
       "end": 46,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     }
   ]
 }

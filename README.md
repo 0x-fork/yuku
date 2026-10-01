@@ -93,15 +93,15 @@ import { Analyzer } from "yuku-analyzer";
 
 const project = new Analyzer();
 
-project.addFile("a.ts", `export const value = 1;`);
-project.addFile("b.ts", `export { value as renamed } from "./a.ts";`);
-project.addFile("c.ts", `import { renamed } from "./b.ts"; renamed;`);
+project.setFile("a.ts", `export const value = 1;`);
+project.setFile("b.ts", `export { value as renamed } from "./a.ts";`);
+project.setFile("c.ts", `import { renamed } from "./b.ts"; renamed;`);
 
-project.module("c.ts").rootScope.find("renamed").definition().symbol.name;
+project.module("c.ts").rootScope.find("renamed").definition().binding.name;
 // "value"
 ```
 
-Scopes, symbols, resolved references, closures, and cross-file module linking, computed in one native pass.
+Scopes, bindings, resolved references, closures, and cross-file module linking, computed in one native pass.
 
 [Read the yuku-analyzer documentation →](https://www.npmjs.com/package/yuku-analyzer)
 

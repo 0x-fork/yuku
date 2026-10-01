@@ -1,7 +1,7 @@
 import { init } from "@yuku-engine/wasm";
 import { parse, TokenKind } from "yuku-parser";
 import { generate } from "yuku-codegen";
-import { analyze, SymbolFlags } from "yuku-analyzer";
+import { analyze, BindingFlags } from "yuku-analyzer";
 import { CodeJar } from "https://esm.sh/codejar@4.2.0";
 import hljs from "https://esm.sh/highlight.js@11.10.0/lib/core";
 import typescript from "https://esm.sh/highlight.js@11.10.0/lib/languages/typescript";
@@ -149,7 +149,7 @@ const FLAG_BADGES = [
 
 function badges(sym) {
   const out = [];
-  for (const [flag, label] of FLAG_BADGES) if (sym.has(SymbolFlags[flag])) out.push(label);
+  for (const [flag, label] of FLAG_BADGES) if (sym.has(BindingFlags[flag])) out.push(label);
   const i = out.indexOf("let");
   if (i >= 0 && out.includes("const")) out.splice(i, 1);
   return out;
@@ -259,7 +259,7 @@ function recordRow(label, badgeList, specifier, spans, focus) {
 function importRow(imp) {
   const badgeList = [];
   if (imp.isNamespace) badgeList.push("namespace");
-  if (imp.isSideEffect) badgeList.push("side-effect");
+  if (imp.kind === "sideEffect") badgeList.push("side-effect");
   if (imp.typeOnly) badgeList.push("type-only");
   if (imp.phase) badgeList.push(imp.phase);
   let label = imp.local ? imp.local.name : "(side effect)";
@@ -270,11 +270,11 @@ function importRow(imp) {
 
 function exportRow(ex) {
   const badgeList = [];
-  if (ex.isStar) badgeList.push("star");
-  if (ex.isNamespaceReexport && !ex.isStar) badgeList.push("namespace");
-  if (ex.isExportEquals) badgeList.push("export=");
+  if (ex.kind === "star") badgeList.push("star");
+  if (ex.kind === "namespace") badgeList.push("namespace");
+  if (ex.kind === "equals") badgeList.push("export=");
   if (ex.typeOnly) badgeList.push("type-only");
-  let label = ex.name ?? (ex.isExportEquals ? "export =" : "*");
+  let label = ex.name ?? (ex.kind === "equals" ? "export =" : "*");
   if (ex.globalName) label = `as namespace ${ex.globalName}`;
   if (ex.fromName && ex.fromName !== ex.name) label += ` ← ${ex.fromName}`;
   const spans = ex.local ? spansOf(ex.local) : { decl: [[ex.node.start, ex.node.end]], refs: [] };

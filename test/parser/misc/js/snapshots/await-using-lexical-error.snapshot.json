@@ -38,10 +38,11 @@
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 35,
       "end": 36,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     }
   ]
 }

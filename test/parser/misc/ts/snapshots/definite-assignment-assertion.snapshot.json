@@ -481,82 +481,92 @@
     {
       "severity": "error",
       "message": "A declaration with a definite assignment assertion must also have a type annotation",
+      "path": null,
       "start": 57,
       "end": 61,
-      "help": "Annotate the declaration, for example 'x!: string'.",
-      "labels": []
+      "labels": [],
+      "help": "Annotate the declaration, for example 'x!: string'."
     },
     {
       "severity": "error",
       "message": "A declaration with a definite assignment assertion must also have a type annotation",
+      "path": null,
       "start": 68,
       "end": 75,
-      "help": "Annotate the declaration, for example 'x!: string'.",
-      "labels": []
+      "labels": [],
+      "help": "Annotate the declaration, for example 'x!: string'."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 82,
       "end": 97,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 108,
       "end": 132,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 153,
       "end": 173,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     },
     {
       "severity": "error",
       "message": "A declaration with a definite assignment assertion must also have a type annotation",
+      "path": null,
       "start": 256,
       "end": 260,
-      "help": "Annotate the declaration, for example 'x!: string'.",
-      "labels": []
+      "labels": [],
+      "help": "Annotate the declaration, for example 'x!: string'."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 265,
       "end": 280,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 289,
       "end": 313,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     },
     {
       "severity": "error",
       "message": "A declaration with a definite assignment assertion must also have a type annotation",
+      "path": null,
       "start": 339,
       "end": 347,
-      "help": "Annotate the declaration, for example 'x!: string'.",
-      "labels": []
+      "labels": [],
+      "help": "Annotate the declaration, for example 'x!: string'."
     },
     {
       "severity": "error",
       "message": "A declaration with an initializer cannot also have a definite assignment assertion",
+      "path": null,
       "start": 361,
       "end": 380,
-      "help": "Remove the '!'. The initializer already assigns a value.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the '!'. The initializer already assigns a value."
     }
   ]
 }

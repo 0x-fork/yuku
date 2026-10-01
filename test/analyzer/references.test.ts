@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Analyzer, SymbolFlags } from "yuku-analyzer";
+import { Analyzer, BindingFlags } from "yuku-analyzer";
 import { summary } from "./utils/summarize";
 
 describe("resolution", () => {
@@ -27,7 +27,7 @@ describe("resolution", () => {
     `);
   });
 
-  test("this and arguments carry no symbol", () => {
+  test("this and arguments carry no binding", () => {
     expect(summary(`function f() { return this.x + arguments.length; }`, { path: "input.js" }))
       .toMatchInlineSnapshot(`
         "global
@@ -186,24 +186,24 @@ describe("declaration spaces", () => {
     `);
   });
 
-  test("resolve walks the chain per space, and symbols expose the predicates", () => {
-    const module = new Analyzer().addFile(
+  test("lookup walks the chain per space, and bindings expose the predicates", () => {
+    const module = new Analyzer().setFile(
       "input.ts",
       `type T = string; function f() { const T = 1; T; }`,
     );
-    const alias = module.symbols.find((s) => s.name === "T" && s.has(SymbolFlags.TypeSpace))!;
-    const local = module.symbols.find((s) => s.name === "T" && s.has(SymbolFlags.ValueSpace))!;
+    const alias = module.bindings.find((s) => s.name === "T" && s.has(BindingFlags.TypeSpace))!;
+    const local = module.bindings.find((s) => s.name === "T" && s.has(BindingFlags.ValueSpace))!;
     const inner = local.scope;
 
-    expect(module.resolve("T", inner, "type")).toBe(alias);
-    expect(module.resolve("T", inner, "value")).toBe(local);
-    expect(module.resolve("T", inner, "any")).toBe(local);
-    expect(module.resolve("T", inner)).toBe(local);
+    expect(module.lookup("T", { from: inner, space: "type" })).toBe(alias);
+    expect(module.lookup("T", { from: inner, space: "value" })).toBe(local);
+    expect(module.lookup("T", { from: inner, space: "any" })).toBe(local);
+    expect(module.lookup("T", { from: inner })).toBe(local);
 
     expect(alias.visibleIn("type")).toBe(true);
     expect(alias.visibleIn("value")).toBe(false);
     expect(local.visibleIn("typeof")).toBe(true);
-    expect(local.has(SymbolFlags.NamespaceSpace)).toBe(false);
+    expect(local.has(BindingFlags.NamespaceSpace)).toBe(false);
   });
 });
 
@@ -277,11 +277,11 @@ describe("JSX", () => {
   test("a tag is a component unless JSX transforms emit it as an intrinsic string", () => {
     const components = ["_Widget", "_widget", "$Widget", "$", "éWidget", "ÉWidget", "Ωmega", "中文"];
     for (const name of components) {
-      const module = new Analyzer().addFile("input.jsx", `const ${name} = 1; <${name} />;`);
+      const module = new Analyzer().setFile("input.jsx", `const ${name} = 1; <${name} />;`);
       expect(module.rootScope.find(name)?.references, name).toHaveLength(1);
     }
     for (const tag of ["widget", "foo-bar", "Foo-Bar", "a:b", "this", "this.Foo"]) {
-      const module = new Analyzer().addFile("input.jsx", `<${tag} />;`);
+      const module = new Analyzer().setFile("input.jsx", `<${tag} />;`);
       expect(module.unresolvedReferences, tag).toEqual([]);
     }
   });
@@ -289,14 +289,14 @@ describe("JSX", () => {
 
 describe("reference cross-indexes", () => {
   test("unresolvedReferences is exactly the free names", () => {
-    const module = new Analyzer().addFile("input.js", `let local = 1; local; free1; free2;`);
+    const module = new Analyzer().setFile("input.js", `let local = 1; local; free1; free2;`);
     expect(module.unresolvedReferences.map((r) => r.name)).toEqual(["free1", "free2"]);
   });
 
-  test("a symbol's references all point back to it", () => {
-    const module = new Analyzer().addFile("input.js", `let x = 1; x; x = 2; x + x;`);
-    const x = module.symbols.find((s) => s.name === "x")!;
+  test("a binding's references all point back to it", () => {
+    const module = new Analyzer().setFile("input.js", `let x = 1; x; x = 2; x + x;`);
+    const x = module.bindings.find((s) => s.name === "x")!;
     expect(x.references.length).toBe(4);
-    expect(x.references.every((r) => r.symbol === x)).toBe(true);
+    expect(x.references.every((r) => r.binding === x)).toBe(true);
   });
 });

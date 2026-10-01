@@ -88,10 +88,11 @@
     {
       "severity": "error",
       "message": "Constructor cannot be abstract",
+      "path": null,
       "start": 51,
       "end": 62,
-      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract."
     }
   ]
 }

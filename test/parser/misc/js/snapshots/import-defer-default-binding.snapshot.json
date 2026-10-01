@@ -40,10 +40,11 @@
     {
       "severity": "error",
       "message": "'import defer' only supports a namespace import",
+      "path": null,
       "start": 7,
       "end": 12,
-      "help": "Write 'import defer * as ns from \"...\"'.",
-      "labels": []
+      "labels": [],
+      "help": "Write 'import defer * as ns from \"...\"'."
     }
   ]
 }

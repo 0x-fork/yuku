@@ -327,86 +327,92 @@
     {
       "severity": "error",
       "message": "Expected closing tag for '<a.b>' but found '</a.c>'",
+      "path": null,
       "start": 100,
       "end": 103,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 94,
           "end": 97,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     },
     {
       "severity": "error",
       "message": "Expected closing tag for '<a.b.c>' but found '</a.c.b>'",
+      "path": null,
       "start": 123,
       "end": 128,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 115,
           "end": 120,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     },
     {
       "severity": "error",
       "message": "Expected closing tag for '<a.b>' but found '</b.b>'",
+      "path": null,
       "start": 146,
       "end": 149,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 140,
           "end": 143,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     },
     {
       "severity": "error",
       "message": "Expected closing tag for '<a.b>' but found '</a>'",
+      "path": null,
       "start": 167,
       "end": 168,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 161,
           "end": 164,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     },
     {
       "severity": "error",
       "message": "Expected closing tag for '<a:b>' but found '</a:c>'",
+      "path": null,
       "start": 186,
       "end": 189,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 180,
           "end": 183,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     },
     {
       "severity": "error",
       "message": "Expected closing tag for '<a:b>' but found '</a.b>'",
+      "path": null,
       "start": 207,
       "end": 210,
-      "help": "JSX opening and closing tags must have matching names",
       "labels": [
         {
           "start": 201,
           "end": 204,
           "message": "opening tag"
         }
-      ]
+      ],
+      "help": "JSX opening and closing tags must have matching names"
     }
   ]
 }

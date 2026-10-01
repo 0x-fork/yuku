@@ -42,13 +42,7 @@ pub const Options = struct {
     comments: Comments = .some,
 };
 
-pub const Diagnostic = struct {
-    message: []const u8,
-    /// Byte offset where the problem starts.
-    start: u32,
-    /// Byte offset where the problem ends.
-    end: u32,
-};
+pub const Diagnostic = ast.Diagnostic;
 
 pub const Result = struct {
     code: []const u8,
@@ -865,11 +859,10 @@ const Printer = struct {
     }
 
     fn diagnose(self: *Self, idx: NodeIndex, message: []const u8) Error!void {
-        const span = self.tree.span(idx);
         try self.diagnostics.append(self.allocator, .{
+            .severity = .@"error",
             .message = message,
-            .start = span.start,
-            .end = span.end,
+            .span = self.tree.span(idx),
         });
     }
 

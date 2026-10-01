@@ -663,9 +663,9 @@
     {
       "severity": "error",
       "message": "Identifier 'T7' has already been declared",
+      "path": null,
       "start": 924,
       "end": 926,
-      "help": "Consider removing or renaming this declaration of 'T7'",
       "labels": [
         {
           "start": 902,
@@ -677,7 +677,8 @@
           "end": 926,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'T7'"
     }
   ]
 }

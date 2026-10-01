@@ -120,26 +120,29 @@
     {
       "severity": "error",
       "message": "'await' is reserved in an async/module context and cannot be used as a binding identifier",
+      "path": null,
       "start": 19,
       "end": 24,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "'yield' is reserved in a generator context and cannot be used as a binding identifier",
+      "path": null,
       "start": 50,
       "end": 55,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "'await' is reserved in an async/module context and cannot be used as a binding identifier",
+      "path": null,
       "start": 91,
       "end": 96,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

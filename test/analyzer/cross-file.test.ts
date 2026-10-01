@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Analyzer } from "yuku-analyzer";
 import { definition, links, project, references } from "./utils/summarize";
 
-describe("definitionOf", () => {
+describe("definition", () => {
   test("follows import then renamed re-export to the original binding", () => {
     const analyzer = project({
       "a.ts": `export const value = 1;`,
@@ -21,7 +21,7 @@ describe("definitionOf", () => {
     expect(definition(analyzer, "c.ts", "deep")).toBe("a.ts:deep");
   });
 
-  test("a namespace import has a module definition with no symbol", () => {
+  test("a namespace import has a module definition with no binding", () => {
     const analyzer = project({
       "a.ts": `export const x = 1;`,
       "b.ts": `import * as ns from "./a.ts"; ns;`,
@@ -44,13 +44,29 @@ describe("definitionOf", () => {
   });
 });
 
-describe("referencesOf", () => {
+describe("findReferences", () => {
   test("collects local and cross-module uses of a definition", () => {
     const analyzer = project({
       "a.ts": `export function value() {} value();`,
       "b.ts": `import { value } from "./a.ts"; value(); value();`,
     });
     expect(references(analyzer, "a.ts", "value")).toBe("a.ts:value, b.ts:value, b.ts:value");
+  });
+});
+
+describe("resolveExport", () => {
+  test("follows re-exports and stars to the defining binding", () => {
+    const analyzer = project({
+      "a.ts": `export const one = 1; export default 2;`,
+      "lib.ts": `export * from "./a.ts"; export { one as uno } from "./a.ts";
+        export * as ns from "./a.ts";`,
+    });
+    const lib = analyzer.module("lib.ts")!;
+    expect(lib.resolveExport("one")?.binding?.name).toBe("one");
+    expect(lib.resolveExport("uno")?.binding?.name).toBe("one");
+    expect(lib.resolveExport("ns")).toEqual({ module: analyzer.module("a.ts")!, binding: null });
+    expect(lib.resolveExport("default")).toBeNull();
+    expect(lib.resolveExport("missing")).toBeNull();
   });
 });
 
@@ -138,12 +154,48 @@ describe("resolution", () => {
     expect(main.dependencies.map((d) => d.path).sort()).toEqual(["src/index.ts", "src/util.ts"]);
   });
 
+  test("a resolver returns false for an external module and null for an unresolved one", () => {
+    const analyzer = new Analyzer({
+      resolve: (specifier) => (specifier === "react" ? false : null),
+    });
+    analyzer.setFile("main.ts", `import React from "react";\nimport { x } from "./utlis";`);
+    expect(analyzer.diagnostics).toEqual([
+      {
+        severity: "warning",
+        message: "Cannot resolve './utlis'",
+        path: "main.ts",
+        start: 45,
+        end: 54,
+        labels: [],
+        help: null,
+      },
+    ]);
+  });
+
+  test("the default resolver reports a missing file, not a package or an asset", () => {
+    const analyzer = project({
+      "main.ts": `import "react"; import "./app.css"; import "./missing"; import "./gone.ts";`,
+    });
+    expect(analyzer.diagnostics.map((d) => d.message)).toEqual([
+      "Cannot resolve './missing'",
+      "Cannot resolve './gone.ts'",
+    ]);
+  });
+
+  test("project diagnostics include each module's own", () => {
+    const analyzer = project({ "a.ts": `let x; let x;`, "b.ts": `import { y } from "./a";` });
+    expect(analyzer.diagnostics.map((d) => `${d.path}: ${d.message}`)).toEqual([
+      "a.ts: Identifier 'x' has already been declared",
+      "b.ts: Module './a' has no export 'y'",
+    ]);
+  });
+
   test("a custom resolver maps bare specifiers", () => {
     const analyzer = new Analyzer({
       resolve: (specifier) => (specifier === "@app/lib" ? "lib.ts" : null),
     });
-    analyzer.addFile("lib.ts", `export const x = 1;`);
-    analyzer.addFile("main.ts", `import { x } from "@app/lib"; x;`);
+    analyzer.setFile("lib.ts", `export const x = 1;`);
+    analyzer.setFile("main.ts", `import { x } from "@app/lib"; x;`);
     expect(analyzer.module("main.ts")!.dependencies.map((d) => d.path)).toEqual(["lib.ts"]);
     expect(definition(analyzer, "main.ts", "x")).toBe("lib.ts:x");
   });

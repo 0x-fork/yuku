@@ -711,9 +711,9 @@
     {
       "severity": "error",
       "message": "Identifier 'g' has already been declared",
+      "path": null,
       "start": 277,
       "end": 278,
-      "help": "Consider removing or renaming this declaration of 'g'",
       "labels": [
         {
           "start": 261,
@@ -725,14 +725,15 @@
           "end": 278,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'g'"
     },
     {
       "severity": "error",
       "message": "Identifier 'h' has already been declared",
+      "path": null,
       "start": 314,
       "end": 315,
-      "help": "Consider removing or renaming this declaration of 'h'",
       "labels": [
         {
           "start": 297,
@@ -744,14 +745,15 @@
           "end": 315,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'h'"
     },
     {
       "severity": "error",
       "message": "Identifier 'i' has already been declared",
+      "path": null,
       "start": 345,
       "end": 346,
-      "help": "Consider removing or renaming this declaration of 'i'",
       "labels": [
         {
           "start": 334,
@@ -763,14 +765,15 @@
           "end": 346,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'i'"
     },
     {
       "severity": "error",
       "message": "Identifier 'j' has already been declared",
+      "path": null,
       "start": 368,
       "end": 369,
-      "help": "Consider removing or renaming this declaration of 'j'",
       "labels": [
         {
           "start": 356,
@@ -782,14 +785,15 @@
           "end": 369,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'j'"
     },
     {
       "severity": "error",
       "message": "Identifier 'k' has already been declared",
+      "path": null,
       "start": 401,
       "end": 402,
-      "help": "Consider removing or renaming this declaration of 'k'",
       "labels": [
         {
           "start": 388,
@@ -801,14 +805,15 @@
           "end": 402,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'k'"
     },
     {
       "severity": "error",
       "message": "Identifier 'm' has already been declared",
+      "path": null,
       "start": 436,
       "end": 437,
-      "help": "Consider removing or renaming this declaration of 'm'",
       "labels": [
         {
           "start": 422,
@@ -820,14 +825,15 @@
           "end": 437,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'm'"
     },
     {
       "severity": "error",
       "message": "Identifier 'o' has already been declared",
+      "path": null,
       "start": 501,
       "end": 502,
-      "help": "Consider removing or renaming this declaration of 'o'",
       "labels": [
         {
           "start": 485,
@@ -839,7 +845,8 @@
           "end": 502,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'o'"
     }
   ]
 }

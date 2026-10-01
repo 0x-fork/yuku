@@ -424,9 +424,9 @@
     {
       "severity": "error",
       "message": "Identifier 'D1' has already been declared",
+      "path": null,
       "start": 153,
       "end": 155,
-      "help": "Consider removing or renaming this declaration of 'D1'",
       "labels": [
         {
           "start": 120,
@@ -438,14 +438,15 @@
           "end": 155,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'D1'"
     },
     {
       "severity": "error",
       "message": "Identifier 'D2' has already been declared",
+      "path": null,
       "start": 216,
       "end": 218,
-      "help": "Consider removing or renaming this declaration of 'D2'",
       "labels": [
         {
           "start": 198,
@@ -457,14 +458,15 @@
           "end": 218,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'D2'"
     },
     {
       "severity": "error",
       "message": "Identifier 'D3' has already been declared",
+      "path": null,
       "start": 321,
       "end": 323,
-      "help": "Consider removing or renaming this declaration of 'D3'",
       "labels": [
         {
           "start": 288,
@@ -476,14 +478,15 @@
           "end": 323,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'D3'"
     },
     {
       "severity": "error",
       "message": "Identifier 'D4' has already been declared",
+      "path": null,
       "start": 409,
       "end": 411,
-      "help": "Consider removing or renaming this declaration of 'D4'",
       "labels": [
         {
           "start": 374,
@@ -495,7 +498,8 @@
           "end": 411,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'D4'"
     }
   ]
 }

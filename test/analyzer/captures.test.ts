@@ -96,6 +96,6 @@ test("imported bindings count as captures", () => {
 });
 
 test("capturesOf throws on a non-function node", () => {
-  const module = new Analyzer().addFile("input.js", `let x = 1;`);
+  const module = new Analyzer().setFile("input.js", `let x = 1;`);
   expect(() => module.capturesOf(module.ast)).toThrow();
 });

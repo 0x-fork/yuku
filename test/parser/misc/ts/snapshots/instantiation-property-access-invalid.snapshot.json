@@ -78,10 +78,11 @@
     {
       "severity": "error",
       "message": "An instantiation expression cannot be followed by a property access",
+      "path": null,
       "start": 74,
       "end": 78,
-      "help": "Wrap the instantiation expression in parentheses.",
-      "labels": []
+      "labels": [],
+      "help": "Wrap the instantiation expression in parentheses."
     }
   ]
 }

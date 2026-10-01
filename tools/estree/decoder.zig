@@ -33,7 +33,7 @@ pub fn generate(w: *Writer, mode: Mode) Writer.Error!void {
     try writeDecodeBody(w, mode);
     switch (mode) {
         .parser => try w.writeAll("export { decode, TokenKind };\n"),
-        .analyzer => try w.writeAll("export { decode, SymbolFlags, TokenKind };\n"),
+        .analyzer => try w.writeAll("export { BindingFlags, decode };\n"),
     }
 }
 
@@ -125,7 +125,7 @@ fn writeSemanticConstants(w: *Writer) !void {
     };
     try writeArrayRaw(w, "REFERENCE_TYPE_POSITION", &space_type_position);
 
-    try w.writeAll("const SymbolFlags = Object.freeze({\n");
+    try w.writeAll("const BindingFlags = Object.freeze({\n");
     inline for (@typeInfo(Symbol.Flags).@"struct".fields) |field| {
         if (comptime std.mem.eql(u8, field.name, "_")) continue;
         try w.print("  {s}: 1 << {d},\n", .{
@@ -314,7 +314,7 @@ fn writeBuildPosMap(w: *Writer) !void {
 
 fn writeDecodeOpen(w: *Writer) !void {
     try w.print(
-        \\function decode(buffer, source) {{
+        \\function decode(buffer, source, path) {{
         \\  const _u8 = new Uint8Array(buffer);
         \\  const _u32 = new Int32Array(buffer, 0, buffer.byteLength >> 2);
         \\  const _src = source;
@@ -1433,7 +1433,7 @@ fn writeDecodeBody(w: *Writer, mode: Mode) !void {
         \\        }};
         \\        dp += lml;
         \\      }}
-        \\      out[j] = {{ severity: sev, message: msg, start: ds, end: de, help, labels }};
+        \\      out[j] = {{ severity: sev, message: msg, path, start: ds, end: de, labels, help }};
         \\    }}
         \\    return out;
         \\  }}

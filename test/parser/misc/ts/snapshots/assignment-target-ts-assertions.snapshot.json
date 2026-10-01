@@ -634,18 +634,20 @@
     {
       "severity": "error",
       "message": "Invalid assignment target",
+      "path": null,
       "start": 890,
       "end": 894,
-      "help": "The expression behind a non-null or type assertion must itself be a simple assignment target, like an identifier or member access, not a call or other expression.",
-      "labels": []
+      "labels": [],
+      "help": "The expression behind a non-null or type assertion must itself be a simple assignment target, like an identifier or member access, not a call or other expression."
     },
     {
       "severity": "error",
       "message": "TypeScript assertion is not allowed in binding pattern",
+      "path": null,
       "start": 1045,
       "end": 1047,
-      "help": "Non-null ('!') and type ('as', 'satisfies', '<T>') assertions can only appear in assignment targets.",
-      "labels": []
+      "labels": [],
+      "help": "Non-null ('!') and type ('as', 'satisfies', '<T>') assertions can only appear in assignment targets."
     }
   ]
 }

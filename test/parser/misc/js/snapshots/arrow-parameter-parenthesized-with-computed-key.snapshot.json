@@ -252,10 +252,11 @@
     {
       "severity": "error",
       "message": "Parentheses are not allowed in this binding pattern",
+      "path": null,
       "start": 58,
       "end": 59,
-      "help": "Remove the extra parentheses. Binding patterns can only be identifiers, destructuring patterns, or assignment patterns, not parenthesized expressions.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the extra parentheses. Binding patterns can only be identifiers, destructuring patterns, or assignment patterns, not parenthesized expressions."
     }
   ]
 }

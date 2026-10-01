@@ -57,10 +57,11 @@
     {
       "severity": "error",
       "message": "The left-hand side of a for-of statement may not start with 'let'",
+      "path": null,
       "start": 71,
       "end": 74,
-      "help": "Rename the variable or wrap it in parentheses: 'for ((let).x of ...)'",
-      "labels": []
+      "labels": [],
+      "help": "Rename the variable or wrap it in parentheses: 'for ((let).x of ...)'"
     }
   ]
 }

@@ -346,9 +346,9 @@
     {
       "severity": "error",
       "message": "Identifier 'B1' has already been declared",
+      "path": null,
       "start": 73,
       "end": 75,
-      "help": "Consider removing or renaming this declaration of 'B1'",
       "labels": [
         {
           "start": 61,
@@ -360,14 +360,15 @@
           "end": 75,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'B1'"
     },
     {
       "severity": "error",
       "message": "Identifier 'B2' has already been declared",
+      "path": null,
       "start": 111,
       "end": 113,
-      "help": "Consider removing or renaming this declaration of 'B2'",
       "labels": [
         {
           "start": 101,
@@ -379,14 +380,15 @@
           "end": 113,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'B2'"
     },
     {
       "severity": "error",
       "message": "Identifier 'B3' has already been declared",
+      "path": null,
       "start": 153,
       "end": 155,
-      "help": "Consider removing or renaming this declaration of 'B3'",
       "labels": [
         {
           "start": 139,
@@ -398,14 +400,15 @@
           "end": 155,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'B3'"
     },
     {
       "severity": "error",
       "message": "Identifier 'B5' has already been declared",
+      "path": null,
       "start": 370,
       "end": 372,
-      "help": "Consider removing or renaming this declaration of 'B5'",
       "labels": [
         {
           "start": 359,
@@ -417,7 +420,8 @@
           "end": 372,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'B5'"
     }
   ]
 }

@@ -750,82 +750,92 @@
     {
       "severity": "error",
       "message": "An abstract method cannot have an implementation",
+      "path": null,
       "start": 243,
       "end": 245,
-      "help": "Remove the body, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the body, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract accessor cannot have an implementation",
+      "path": null,
       "start": 270,
       "end": 272,
-      "help": "Remove the body, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the body, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract accessor cannot have an implementation",
+      "path": null,
       "start": 302,
       "end": 304,
-      "help": "Remove the body, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the body, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract method cannot have an implementation",
+      "path": null,
       "start": 329,
       "end": 331,
-      "help": "Remove the body, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the body, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract method cannot have an implementation",
+      "path": null,
       "start": 363,
       "end": 365,
-      "help": "Remove the body, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the body, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "Constructor cannot be abstract",
+      "path": null,
       "start": 417,
       "end": 428,
-      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract."
     },
     {
       "severity": "error",
       "message": "Constructor cannot be abstract",
+      "path": null,
       "start": 491,
       "end": 502,
-      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the 'abstract' modifier. Only methods and properties can be abstract."
     },
     {
       "severity": "error",
       "message": "An abstract property cannot have an initializer",
+      "path": null,
       "start": 566,
       "end": 567,
-      "help": "Remove the initializer, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract property cannot have an initializer",
+      "path": null,
       "start": 600,
       "end": 601,
-      "help": "Remove the initializer, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer, or drop the 'abstract' modifier."
     },
     {
       "severity": "error",
       "message": "An abstract property cannot have an initializer",
+      "path": null,
       "start": 630,
       "end": 631,
-      "help": "Remove the initializer, or drop the 'abstract' modifier.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer, or drop the 'abstract' modifier."
     }
   ]
 }

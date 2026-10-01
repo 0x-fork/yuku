@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Analyzer, SymbolFlags } from "yuku-analyzer";
+import { Analyzer, BindingFlags } from "yuku-analyzer";
 import { summary } from "./utils/summarize";
 
 describe("variable kinds", () => {
@@ -160,7 +160,7 @@ describe("TypeScript declarations", () => {
 });
 
 describe("declaration merging", () => {
-  test("function overloads merge into one symbol with every declarator", () => {
+  test("function overloads merge into one binding with every declarator", () => {
     expect(
       summary(`function f(a: number): void; function f(a: string): void; function f(a: any) {}`),
     ).toMatchInlineSnapshot(`
@@ -246,13 +246,13 @@ describe("modifiers", () => {
 
 describe("value space and type space", () => {
   test("a class lives in both spaces; interface and alias are type-only; const is value-only", () => {
-    const module = new Analyzer().addFile(
+    const module = new Analyzer().setFile(
       "input.ts",
       `class C {} interface I {} type A = 1; const v = 1;`,
     );
     const spaces = (name: string) => {
-      const s = module.symbols.find((sym) => sym.name === name)!;
-      return [s.has(SymbolFlags.ValueSpace), s.has(SymbolFlags.TypeSpace)];
+      const s = module.bindings.find((sym) => sym.name === name)!;
+      return [s.has(BindingFlags.ValueSpace), s.has(BindingFlags.TypeSpace)];
     };
 
     expect(spaces("C")).toEqual([true, true]);
@@ -262,8 +262,8 @@ describe("value space and type space", () => {
   });
 
   test("an enum lives in both spaces", () => {
-    const module = new Analyzer().addFile("input.ts", `enum E { A }`);
-    const e = module.symbols.find((s) => s.name === "E")!;
-    expect([e.has(SymbolFlags.ValueSpace), e.has(SymbolFlags.TypeSpace)]).toEqual([true, true]);
+    const module = new Analyzer().setFile("input.ts", `enum E { A }`);
+    const e = module.bindings.find((s) => s.name === "E")!;
+    expect([e.has(BindingFlags.ValueSpace), e.has(BindingFlags.TypeSpace)]).toEqual([true, true]);
   });
 });

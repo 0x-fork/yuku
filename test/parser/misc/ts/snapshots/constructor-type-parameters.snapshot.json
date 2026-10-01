@@ -813,42 +813,47 @@
     {
       "severity": "error",
       "message": "Type parameters cannot appear on a constructor declaration",
+      "path": null,
       "start": 162,
       "end": 165,
-      "help": "Declare the type parameters on the class instead.",
-      "labels": []
+      "labels": [],
+      "help": "Declare the type parameters on the class instead."
     },
     {
       "severity": "error",
       "message": "Type parameters cannot appear on a constructor declaration",
+      "path": null,
       "start": 217,
       "end": 220,
-      "help": "Declare the type parameters on the class instead.",
-      "labels": []
+      "labels": [],
+      "help": "Declare the type parameters on the class instead."
     },
     {
       "severity": "error",
       "message": "Type parameters cannot appear on a constructor declaration",
+      "path": null,
       "start": 278,
       "end": 281,
-      "help": "Declare the type parameters on the class instead.",
-      "labels": []
+      "labels": [],
+      "help": "Declare the type parameters on the class instead."
     },
     {
       "severity": "error",
       "message": "Type parameters cannot appear on a constructor declaration",
+      "path": null,
       "start": 340,
       "end": 343,
-      "help": "Declare the type parameters on the class instead.",
-      "labels": []
+      "labels": [],
+      "help": "Declare the type parameters on the class instead."
     },
     {
       "severity": "error",
       "message": "Type parameters cannot appear on a constructor declaration",
+      "path": null,
       "start": 402,
       "end": 405,
-      "help": "Declare the type parameters on the class instead.",
-      "labels": []
+      "labels": [],
+      "help": "Declare the type parameters on the class instead."
     }
   ]
 }

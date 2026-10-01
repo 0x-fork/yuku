@@ -199,58 +199,65 @@
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 111,
       "end": 112,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 132,
       "end": 133,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 142,
       "end": 143,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 152,
       "end": 153,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 163,
       "end": 164,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 176,
       "end": 177,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     },
     {
       "severity": "error",
       "message": "Identifier cannot immediately follow a numeric literal",
+      "path": null,
       "start": 198,
       "end": 199,
-      "help": "Try adding whitespace here between the number and identifier",
-      "labels": []
+      "labels": [],
+      "help": "Try adding whitespace here between the number and identifier"
     }
   ]
 }

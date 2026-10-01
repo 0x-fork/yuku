@@ -392,42 +392,47 @@
     {
       "severity": "error",
       "message": "A 'readonly' modifier can only appear on a property declaration or index signature",
+      "path": null,
       "start": 146,
       "end": 152,
-      "help": "Remove 'readonly' from this method.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'readonly' from this method."
     },
     {
       "severity": "error",
       "message": "A 'readonly' modifier can only appear on a property declaration or index signature",
+      "path": null,
       "start": 169,
       "end": 177,
-      "help": "Remove 'readonly' from this method.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'readonly' from this method."
     },
     {
       "severity": "error",
       "message": "A 'readonly' modifier can only appear on a property declaration or index signature",
+      "path": null,
       "start": 202,
       "end": 208,
-      "help": "Remove 'readonly' from this method.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'readonly' from this method."
     },
     {
       "severity": "error",
       "message": "A 'readonly' modifier can only appear on a property declaration or index signature",
+      "path": null,
       "start": 229,
       "end": 235,
-      "help": "Remove 'readonly' from this method.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'readonly' from this method."
     },
     {
       "severity": "error",
       "message": "A 'readonly' modifier can only appear on a property declaration or index signature",
+      "path": null,
       "start": 257,
       "end": 268,
-      "help": "Remove 'readonly' from this method.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'readonly' from this method."
     }
   ]
 }

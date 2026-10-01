@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { Analyzer, SymbolFlags, type Module } from "yuku-analyzer";
+import { Analyzer, BindingFlags, type Module } from "yuku-analyzer";
 import type { Node } from "yuku-parser";
 import { corpusPresent, forEachCorpusFile } from "../corpus";
 
@@ -33,10 +33,10 @@ function expectedCaptures(module: Module, fn: Node): Set<number> {
   };
   const captured = new Set<number>();
   for (const reference of module.references) {
-    if (reference.inTypePosition || reference.symbol === null) continue;
+    if (reference.inTypePosition || reference.binding === null) continue;
     if (reference.node.start < fn.start || reference.node.end > fn.end) continue;
-    if (within(reference.symbol.scope)) continue;
-    captured.add(reference.symbol.id);
+    if (within(reference.binding.scope)) continue;
+    captured.add(reference.binding.id);
   }
   return captured;
 }
@@ -44,19 +44,19 @@ function expectedCaptures(module: Module, fn: Node): Set<number> {
 function fingerprint(module: Module): string {
   return JSON.stringify([
     module.scopes.map((s) => s.kind),
-    module.symbols.map((s) => s.flags),
-    module.references.map((r) => r.symbol?.id ?? -1),
+    module.bindings.map((s) => s.flags),
+    module.references.map((r) => r.binding?.id ?? -1),
   ]);
 }
 
 function check(path: string, source: string): void {
   let module: Module;
   try {
-    module = new Analyzer().addFile(path, source);
+    module = new Analyzer().setFile(path, source);
     // touch every section so a decode fault throws here, not later
     void module.ast;
     void module.scopes;
-    void module.symbols;
+    void module.bindings;
     void module.references;
     void module.imports;
     void module.exports;
@@ -67,15 +67,15 @@ function check(path: string, source: string): void {
   analyzed++;
 
   // cross-index symmetry. back-references agree and the reference set
-  // partitions cleanly into resolved (owned by one symbol) and unresolved
+  // partitions cleanly into resolved (owned by one binding) and unresolved
   let ownedReferences = 0;
-  for (const symbol of module.symbols) {
-    for (const reference of symbol.references) {
-      if (reference.symbol !== symbol) {
-        note(violations.crossIndex, `${path}: ${symbol.name} back-ref`);
+  for (const binding of module.bindings) {
+    for (const reference of binding.references) {
+      if (reference.binding !== binding) {
+        note(violations.crossIndex, `${path}: ${binding.name} back-ref`);
       }
     }
-    ownedReferences += symbol.references.length;
+    ownedReferences += binding.references.length;
   }
   for (const scope of module.scopes) {
     for (const binding of scope.bindings) {
@@ -84,7 +84,7 @@ function check(path: string, source: string): void {
       }
     }
   }
-  const resolved = module.references.filter((r) => r.symbol !== null).length;
+  const resolved = module.references.filter((r) => r.binding !== null).length;
   if (ownedReferences !== resolved) {
     note(violations.crossIndex, `${path}: owned ${ownedReferences} != resolved ${resolved}`);
   }
@@ -95,7 +95,7 @@ function check(path: string, source: string): void {
   // resolution soundness. a resolved binding is visible from the use site,
   // its scope an ancestor-or-self of the reference scope
   for (const reference of module.references) {
-    if (reference.symbol && !reference.symbol.scope.contains(reference.scope)) {
+    if (reference.binding && !reference.binding.scope.contains(reference.scope)) {
       note(violations.resolutionScope, `${path}: ${reference.name} resolves out of scope`);
     }
   }
@@ -104,14 +104,14 @@ function check(path: string, source: string): void {
   // whole AST first so the registration holds no matter which path built a
   // node first
   void module.ast;
-  for (const symbol of module.symbols) {
-    const decl = symbol.declarations[0];
+  for (const binding of module.bindings) {
+    const decl = binding.declarations[0];
     if (decl === undefined) continue;
-    const owner = module.symbolOf(decl);
-    if (owner !== symbol) {
+    const owner = module.bindingOf(decl);
+    if (owner !== binding) {
       note(
         violations.nodeIdentity,
-        `${path}: symbolOf(decl ${symbol.name}) is ${owner === null ? "null" : `#${owner.id}`}`,
+        `${path}: bindingOf(decl ${binding.name}) is ${owner === null ? "null" : `#${owner.id}`}`,
       );
     }
   }
@@ -119,8 +119,8 @@ function check(path: string, source: string): void {
     if (module.referenceOf(reference.node) !== reference) {
       note(violations.nodeIdentity, `${path}: referenceOf(${reference.name})`);
     }
-    if (module.symbolOf(reference.node) !== reference.symbol) {
-      note(violations.nodeIdentity, `${path}: symbolOf(ref ${reference.name})`);
+    if (module.bindingOf(reference.node) !== reference.binding) {
+      note(violations.nodeIdentity, `${path}: bindingOf(ref ${reference.name})`);
     }
   }
 
@@ -141,7 +141,7 @@ function check(path: string, source: string): void {
     },
   });
 
-  // symbols and references are recorded in walk order, and the walk is
+  // bindings and references are recorded in walk order, and the walk is
   // source-ordered (see the ast.zig module doc), so ids ascend with source
   let prevRef = -1;
   for (const reference of module.references) {
@@ -154,13 +154,13 @@ function check(path: string, source: string): void {
     prevRef = at;
   }
   let prevSym = -1;
-  for (const symbol of module.symbols) {
-    const decl = symbol.declarations[0];
+  for (const binding of module.bindings) {
+    const decl = binding.declarations[0];
     if (decl === undefined) continue;
     const at = walkOrder.get(decl);
     if (at === undefined) continue;
     if (at < prevSym) {
-      note(violations.ordering, `${path}: symbol ${symbol.name} out of walk order`);
+      note(violations.ordering, `${path}: binding ${binding.name} out of walk order`);
       break;
     }
     prevSym = at;
@@ -174,7 +174,7 @@ function check(path: string, source: string): void {
   ])) {
     let native: Set<number>;
     try {
-      native = new Set(module.capturesOf(fn).map((c) => c.symbol.id));
+      native = new Set(module.capturesOf(fn).map((c) => c.binding.id));
     } catch {
       continue;
     }
@@ -189,18 +189,18 @@ function check(path: string, source: string): void {
 
   // module records are well formed
   for (const record of module.imports) {
-    if (record.local && (record.local.flags & SymbolFlags.Import) === 0) {
+    if (record.local && (record.local.flags & BindingFlags.Import) === 0) {
       note(violations.records, `${path}: import local '${record.local.name}' not flagged import`);
     }
   }
   for (const record of module.exports) {
-    if (record.local && !module.symbols.includes(record.local)) {
-      note(violations.records, `${path}: export local not in symbols`);
+    if (record.local && !module.bindings.includes(record.local)) {
+      note(violations.records, `${path}: export local not in bindings`);
     }
   }
 
   // determinism. a second independent analysis yields an identical model
-  const again = new Analyzer().addFile(path, source);
+  const again = new Analyzer().setFile(path, source);
   if (fingerprint(module) !== fingerprint(again)) {
     note(violations.determinism, `${path}: non-deterministic`);
   }
@@ -219,7 +219,7 @@ describe.skipIf(!corpusPresent())("analyzer corpus invariants", () => {
     expect(violations.crashed).toEqual([]);
   });
 
-  test("scope and symbol cross-indexes are symmetric", () => {
+  test("scope and binding cross-indexes are symmetric", () => {
     expect(violations.crossIndex).toEqual([]);
   });
 
@@ -251,7 +251,7 @@ describe.skipIf(!corpusPresent())("analyzer corpus invariants", () => {
     expect(violations.determinism).toEqual([]);
   });
 
-  test("symbols and references are recorded in walk (source) order", () => {
+  test("bindings and references are recorded in walk (source) order", () => {
     expect(violations.ordering).toEqual([]);
   });
 });

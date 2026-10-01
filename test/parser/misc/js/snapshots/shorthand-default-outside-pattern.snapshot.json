@@ -1146,82 +1146,92 @@
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 120,
       "end": 125,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 141,
       "end": 146,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 161,
       "end": 166,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 176,
       "end": 181,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 191,
       "end": 196,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 204,
       "end": 209,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 217,
       "end": 222,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 236,
       "end": 241,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 256,
       "end": 261,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     },
     {
       "severity": "error",
       "message": "Shorthand property cannot have a default value in object expression",
+      "path": null,
       "start": 273,
       "end": 278,
-      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns.",
-      "labels": []
+      "labels": [],
+      "help": "Use '{ a: a = 1 }' syntax or this is only valid in destructuring patterns."
     }
   ]
 }

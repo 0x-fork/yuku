@@ -90,10 +90,11 @@
     {
       "severity": "error",
       "message": "Rest parameter may not have a trailing comma",
+      "path": null,
       "start": 218,
       "end": 236,
-      "help": "Remove the trailing comma after the rest parameter.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the trailing comma after the rest parameter."
     }
   ]
 }

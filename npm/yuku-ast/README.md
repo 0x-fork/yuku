@@ -2,7 +2,7 @@
 
 Walk, build, and check any ESTree / TypeScript-ESTree AST, with typed visitors, in-place mutation, builders, guards, and syntactic utilities, part of [Yuku](https://yuku.fyi).
 
-It is plain JavaScript and works on any ESTree AST, whichever parser produced it. Traversal order comes from tables generated from Yuku's AST definition, so it never drifts from the parser, and there is no runtime key discovery.
+It is plain JavaScript and works on any ESTree AST, whichever parser produced it.
 
 - [Install](#install)
 - [Walking](#walking)
@@ -179,7 +179,7 @@ Plus `isIdentifierStart`, `isIdentifierChar`, `isKeyword`, `isReservedWord`, `is
 
 ## Semantic analysis
 
-[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) builds on this walker. Its `module.walk` carries the semantic model in the context, as `ctx.scope`, `ctx.symbol`, and `ctx.reference`.
+[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) builds on this walker. Its `module.walk` adds the semantic model to the context, as `ctx.binding`, `ctx.reference`, and `ctx.scope`.
 
 ## License
 

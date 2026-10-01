@@ -1,4 +1,4 @@
-// Compares resolutions, write flags, and declared symbols against
+// Compares resolutions, write flags, and declared bindings against
 // @typescript-eslint/scope-manager on positions both models record.
 
 import { describe, expect, test } from "bun:test";
@@ -41,13 +41,13 @@ function compare(
     // tsc-differential covers type space
     if (reference.inTypePosition) continue;
     referenceAt.set(reference.node.start, reference);
-    const symbol = reference.symbol;
+    const binding = reference.binding;
     yuku.set(reference.node.start, {
-      def: symbol === null ? UNRESOLVED : Math.min(...symbol.declarations.map((d) => d.start)),
+      def: binding === null ? UNRESOLVED : Math.min(...binding.declarations.map((d) => d.start)),
       write: reference.isWrite,
     });
   }
-  const yukuDecls = new Set(module.symbols.flatMap((s) => s.declarations.map((d) => d.start)));
+  const yukuDecls = new Set(module.bindings.flatMap((s) => s.declarations.map((d) => d.start)));
 
   const jsx = lang === "jsx" || lang === "tsx";
   const tree = tsParse(source, { range: true, sourceType, jsx, allowInvalidAST: false });
@@ -93,7 +93,8 @@ function compare(
     if (ours.def !== theirs.def) {
       // scope-manager binds purely lexically, without space rules
       const reference = referenceAt.get(position)!;
-      if (ours.def === UNRESOLVED && module.resolve(reference.name, reference.scope, "any") !== null) {
+      const named = module.lookup(reference.name, { from: reference.scope, space: "any" });
+      if (ours.def === UNRESOLVED && named !== null) {
         continue;
       }
       // merged enum declarations resolve members across blocks

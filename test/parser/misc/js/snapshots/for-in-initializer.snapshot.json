@@ -446,66 +446,74 @@
     {
       "severity": "error",
       "message": "for-in loop variable declaration may not have an initializer",
+      "path": null,
       "start": 32,
       "end": 37,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-in loop variable declaration may not have an initializer",
+      "path": null,
       "start": 56,
       "end": 61,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-in loop variable declaration may not have an initializer",
+      "path": null,
       "start": 78,
       "end": 85,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-in loop variable declaration may not have an initializer",
+      "path": null,
       "start": 102,
       "end": 111,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-of loop variable declaration may not have an initializer",
+      "path": null,
       "start": 129,
       "end": 134,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-of loop variable declaration may not have an initializer",
+      "path": null,
       "start": 151,
       "end": 156,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-of loop variable declaration may not have an initializer",
+      "path": null,
       "start": 175,
       "end": 180,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     },
     {
       "severity": "error",
       "message": "for-of loop variable declaration may not have an initializer",
+      "path": null,
       "start": 224,
       "end": 229,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     }
   ]
 }

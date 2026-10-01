@@ -1,6 +1,6 @@
-import { analyze as analyzeSource, langFromPath, sourceTypeFromPath } from "yuku-engine";
-import { decode, SymbolFlags } from "./decode.js";
-import { walkModule, walkModuleAsync } from "./walk.js";
+import { CHILD_KEYS, findAll, WalkContext, _walk, _walkAsync } from "yuku-ast";
+import { analyze as analyzeBytes } from "yuku-engine";
+import { BindingFlags, decode } from "./decode.js";
 
 const _enc = new TextEncoder();
 const _dec = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
@@ -22,8 +22,8 @@ class Scope {
     return this.#sem.scope.node(this.id);
   }
   get parent() {
-    const p = this.#sem.scope.parentId(this.id);
-    return p === null ? null : this.module.scopes[p];
+    const parent = this.#sem.scope.parentId(this.id);
+    return parent === null ? null : this.module.scopes[parent];
   }
   get hoistTarget() {
     return this.module.scopes[this.#sem.scope.hoistTargetId(this.id)];
@@ -32,19 +32,19 @@ class Scope {
     return this.module._scopeBindings(this.id);
   }
   find(name) {
-    for (const symbol of this.bindings) if (symbol.name === name) return symbol;
+    for (const binding of this.bindings) if (binding.name === name) return binding;
     return null;
   }
   contains(other) {
-    for (let s = other; s; s = s.parent) if (s === this) return true;
+    for (let scope = other; scope !== null; scope = scope.parent) if (scope === this) return true;
     return false;
   }
   *ancestors() {
-    for (let s = this; s; s = s.parent) yield s;
+    for (let scope = this; scope !== null; scope = scope.parent) yield scope;
   }
 }
 
-class Symbol {
+class Binding {
   #sem;
   constructor(module, sem, id) {
     this.module = module;
@@ -62,12 +62,12 @@ class Symbol {
   }
   get declarations() {
     const { symbol } = this.#sem;
-    const out = Array.from({ length: symbol.declCount(this.id) });
+    const out = new Array(symbol.declCount(this.id));
     for (let i = 0; i < out.length; i++) out[i] = symbol.declNode(this.id, i);
     return out;
   }
   get references() {
-    return this.module._referencesOfSymbol(this.id);
+    return this.module._bindingReferences(this.id);
   }
   has(mask) {
     return (this.flags & mask) !== 0;
@@ -75,26 +75,28 @@ class Symbol {
   hasAll(mask) {
     return (this.flags & mask) === mask;
   }
-  // the acceptance rule of name resolution. import bindings alias
-  // symbols of unknowable space and are visible in every space
+  // the acceptance rule of name resolution. an import aliases a binding
+  // whose space one file cannot know, so it is visible in every space
   visibleIn(space) {
-    const flags = this.flags;
-    if ((flags & SymbolFlags.Import) !== 0) return true;
+    if (this.has(BindingFlags.Import)) return true;
     switch (space) {
       case "value":
       case "typeof":
-        return (flags & SymbolFlags.ValueSpace) !== 0;
+        return this.has(BindingFlags.ValueSpace);
       case "type":
-        return (flags & SymbolFlags.TypeSpace) !== 0;
+        return this.has(BindingFlags.TypeSpace);
       case "namespace":
-        return (flags & SymbolFlags.NamespaceSpace) !== 0;
+        return this.has(BindingFlags.NamespaceSpace);
       case "any":
         return true;
     }
-    throw new TypeError(`visibleIn: unknown space "${space}"`);
+    throw new TypeError('`space` must be "value", "type", "namespace", "typeof", or "any"');
   }
   definition() {
-    return this.module.analyzer.definitionOf(this);
+    return this.module.analyzer._definitionOf(this);
+  }
+  findReferences() {
+    return this.module.analyzer._referencesOf(this);
   }
 }
 
@@ -123,9 +125,9 @@ class Reference {
   get isWrite() {
     return this.#sem.reference.isWrite(this.id);
   }
-  get symbol() {
-    const s = this.#sem.reference.symbolId(this.id);
-    return s === null ? null : this.module.symbols[s];
+  get binding() {
+    const binding = this.#sem.reference.symbolId(this.id);
+    return binding === null ? null : this.module.bindings[binding];
   }
 }
 
@@ -140,25 +142,20 @@ class Import {
   get kind() {
     return this.#sem.import.kind(this.id);
   }
-  get local() {
-    const s = this.#sem.import.symbolId(this.id);
-    return s === null ? null : this.module.symbols[s];
-  }
   get name() {
     return this.kind === "named" ? this.#sem.import.name(this.id) : null;
   }
+  get local() {
+    const binding = this.#sem.import.symbolId(this.id);
+    return binding === null ? null : this.module.bindings[binding];
+  }
+  // `import ns = require("m")` binds the module like `import * as ns`
   get isNamespace() {
     const kind = this.kind;
     return kind === "namespace" || kind === "importEquals";
   }
-  get isSideEffect() {
-    return this.kind === "sideEffect";
-  }
-  get isDynamic() {
-    return this.kind === "dynamic";
-  }
-  get isRequire() {
-    return this.kind === "require";
+  get specifier() {
+    return this.#sem.import.specifier(this.id);
   }
   get typeOnly() {
     return this.#sem.import.typeOnly(this.id);
@@ -166,14 +163,11 @@ class Import {
   get phase() {
     return this.#sem.import.phase(this.id);
   }
-  get specifier() {
-    return this.#sem.import.specifier(this.id);
-  }
   get node() {
     return this.#sem.import.node(this.id);
   }
   get resolvedModule() {
-    this.module.analyzer._ensureLinked();
+    this.module.analyzer._link(this.module);
     return this._resolved;
   }
 }
@@ -195,21 +189,12 @@ class Export {
       ? this.#sem.export.name(this.id)
       : null;
   }
-  get isStar() {
-    return this.kind === "star";
-  }
-  get isExportEquals() {
-    return this.kind === "equals";
-  }
   get globalName() {
     return this.kind === "global" ? this.#sem.export.name(this.id) : null;
   }
-  get typeOnly() {
-    return this.#sem.export.typeOnly(this.id);
-  }
   get local() {
-    const s = this.#sem.export.symbolId(this.id);
-    return s === null ? null : this.module.symbols[s];
+    const binding = this.#sem.export.symbolId(this.id);
+    return binding === null ? null : this.module.bindings[binding];
   }
   get specifier() {
     const kind = this.kind;
@@ -220,15 +205,35 @@ class Export {
   get fromName() {
     return this.kind === "reExport" ? this.#sem.export.fromName(this.id) : null;
   }
-  get isNamespaceReexport() {
-    return this.kind === "namespace";
+  get typeOnly() {
+    return this.#sem.export.typeOnly(this.id);
   }
   get node() {
     return this.#sem.export.node(this.id);
   }
   get resolvedModule() {
-    this.module.analyzer._ensureLinked();
+    this.module.analyzer._link(this.module);
     return this._resolved;
+  }
+}
+
+class SemanticWalkContext extends WalkContext {
+  #module;
+  constructor(module) {
+    super();
+    this.#module = module;
+  }
+  get module() {
+    return this.#module;
+  }
+  get scope() {
+    return this.#module.scopeOf(this._node);
+  }
+  get binding() {
+    return this.#module.bindingOf(this._node);
+  }
+  get reference() {
+    return this.#module.referenceOf(this._node);
   }
 }
 
@@ -236,18 +241,18 @@ export class Module {
   #r;
   #sem;
   #scopes = null;
-  #symbols = null;
+  #bindings = null;
   #references = null;
   #unresolved = null;
   #imports = null;
   #exports = null;
   #scopeBindings = null;
-  #symbolReferences = null;
-  #declToSymbol = null;
-  #nodeToReference = null;
+  #bindingReferences = null;
+  #declarations = null;
+  #referenceNodes = null;
   #exportMap = null;
   #starExports = null;
-  #importBySymbol = null;
+  #importByBinding = null;
   _deps = [];
   _dependents = [];
 
@@ -255,24 +260,16 @@ export class Module {
     this.analyzer = analyzer;
     this.path = path;
     this.source = typeof source === "string" ? source : _dec.decode(source);
-    this.#r = decode(
-      analyzeSource(typeof source === "string" ? _enc.encode(source) : source, {
-        lang: options.lang ?? langFromPath(path),
-        sourceType: options.sourceType ?? sourceTypeFromPath(path),
-        preserveParens: options.preserveParens,
-        attachComments: options.attachComments,
-        tokens: options.tokens,
-      }),
-      this.source,
-    );
+    const bytes = typeof source === "string" ? _enc.encode(source) : source;
+    this.#r = decode(analyzeBytes(bytes, { ...options, path }), this.source, path);
     this.#sem = this.#r.semantic;
   }
 
+  get isCurrent() {
+    return this.analyzer.module(this.path) === this;
+  }
   get ast() {
     return this.#r.program;
-  }
-  get diagnostics() {
-    return this.#r.diagnostics;
   }
   get comments() {
     return this.#r.comments;
@@ -280,16 +277,29 @@ export class Module {
   get tokens() {
     return this.#r.tokens;
   }
+  get diagnostics() {
+    return this.#r.diagnostics;
+  }
 
   get scopes() {
     return this.#scopes ?? (this.#scopes = this.#rows(Scope, this.#sem.scope.count));
   }
-  get symbols() {
-    return this.#symbols ?? (this.#symbols = this.#rows(Symbol, this.#sem.symbol.count));
+  get rootScope() {
+    const scopes = this.scopes;
+    return scopes.length > 1 && scopes[1].kind === "module" ? scopes[1] : scopes[0];
+  }
+  get bindings() {
+    return this.#bindings ?? (this.#bindings = this.#rows(Binding, this.#sem.symbol.count));
   }
   get references() {
     return (
       this.#references ?? (this.#references = this.#rows(Reference, this.#sem.reference.count))
+    );
+  }
+  get unresolvedReferences() {
+    return (
+      this.#unresolved ??
+      (this.#unresolved = this.references.filter((reference) => reference.binding === null))
     );
   }
   get imports() {
@@ -301,88 +311,66 @@ export class Module {
   get moduleFlags() {
     return this.#sem.moduleFlags;
   }
-  get unresolvedReferences() {
-    return (
-      this.#unresolved ?? (this.#unresolved = this.references.filter((r) => r.symbol === null))
-    );
-  }
-
-  get rootScope() {
-    const scopes = this.scopes;
-    if (scopes.length > 1 && scopes[1].kind === "module") return scopes[1];
-    return scopes[0];
-  }
-
   get dependencies() {
-    this.analyzer._ensureLinked();
+    this.analyzer._link(this);
     return this._deps;
   }
   get dependents() {
-    this.analyzer._ensureLinked();
+    this.analyzer._link(this);
     return this._dependents;
   }
 
-  symbolOf(node) {
+  bindingOf(node) {
     const index = this.#r.indexOf(node);
-    return index === undefined ? null : this._symbolByIndex(index);
+    if (index === undefined) return null;
+    const declared = this.#declarationMap().get(index);
+    if (declared !== undefined) return this.bindings[declared];
+    return this.referenceOf(node)?.binding ?? null;
   }
 
   referenceOf(node) {
     const index = this.#r.indexOf(node);
-    return index === undefined ? null : this._referenceByIndex(index);
+    if (index === undefined) return null;
+    const reference = this.#referenceMap().get(index);
+    return reference === undefined ? null : this.references[reference];
   }
 
   scopeOf(node) {
     const index = this.#r.indexOf(node);
-    // a node inserted after analysis has no recorded scope
+    // a node created after analysis has no recorded scope
     if (index === undefined) return this.rootScope;
     return this.scopes[this.#sem.nodeScope(index)];
   }
 
   parentOf(node) {
-    // the synthesized hashbang has no native index, its parent is the program
-    if (node?.type === "Hashbang") {
-      return node === this.ast.hashbang ? this.ast : null;
-    }
+    // the hashbang is synthesized in JavaScript, so it has no native index
+    if (node?.type === "Hashbang") return node === this.ast.hashbang ? this.ast : null;
     const index = this.#r.indexOf(node);
     if (index === undefined) return null;
     const parent = this.#r.parentIndex(index);
     return parent < 0 ? null : this.#r.nodeOf(parent);
   }
 
-  // mirrors reference resolution. a binding outside the space does not
-  // shadow, "any" matches by name alone, and a value-position arguments
-  // lookup stops where the implicit arguments object shadows
-  resolve(name, from = this.rootScope, space = "value") {
-    const argumentsBarrier =
-      name === "arguments" && (space === "value" || space === "typeof");
-    for (let s = from; s; s = s.parent) {
-      const found = s.find(name);
-      if (found && found.visibleIn(space)) return found;
-      if (
-        argumentsBarrier &&
-        (s.kind === "staticBlock" ||
-          (s.kind === "function" && s.node.type !== "ArrowFunctionExpression"))
-      ) {
-        return null;
-      }
+  nodeAt(offset) {
+    let node = this.ast;
+    if (!spans(node, offset)) return null;
+    for (let child = childAt(node, offset); child !== null; child = childAt(node, offset)) {
+      node = child;
     }
-    return null;
+    return node;
   }
 
-  // GetExportedNames, 16.2.1.7.2.1
-  exportedNames(exportStarSet = new Set()) {
-    if (exportStarSet.has(this)) return [];
-    exportStarSet.add(this);
-    this.analyzer._ensureLinked();
-    const names = new Set(this._exportMap().keys());
-    for (const star of this._starExports()) {
-      if (star._resolved === null) continue;
-      for (const name of star._resolved.exportedNames(exportStarSet)) {
-        if (name !== "default") names.add(name);
-      }
+  // mirrors reference resolution. a binding outside the space does not
+  // shadow, "any" matches by name alone, and a value lookup of `arguments`
+  // stops where the implicit arguments object shadows it
+  lookup(name, { from = this.rootScope, space = "value" } = {}) {
+    const argumentsBarrier = name === "arguments" && (space === "value" || space === "typeof");
+    for (let scope = from; scope !== null; scope = scope.parent) {
+      const found = scope.find(name);
+      if (found !== null && found.visibleIn(space)) return found;
+      if (argumentsBarrier && isArgumentsScope(scope)) return null;
     }
-    return [...names];
+    return null;
   }
 
   capturesOf(fn) {
@@ -391,29 +379,29 @@ export class Module {
       throw new TypeError("capturesOf: node does not belong to this module's AST");
     }
     const { scope, symbol, reference } = this.#sem;
-    const fnScopeId = this.#sem.nodeScope(index);
-    if (scope.kind(fnScopeId) !== "function" || scope.nodeIndex(fnScopeId) !== index) {
+    const fnScope = this.#sem.nodeScope(index);
+    if (scope.kind(fnScope) !== "function" || scope.nodeIndex(fnScope) !== index) {
       throw new TypeError("capturesOf: node does not create a function scope");
     }
     const start = this.#r.startOf(index);
     const end = this.#r.endOf(index);
     const captures = new Map();
     for (let i = 0; i < reference.count; i++) {
-      const symbolId = reference.symbolId(i);
-      if (symbolId === null || reference.inTypePosition(i)) continue;
+      const target = reference.symbolId(i);
+      if (target === null || reference.inTypePosition(i)) continue;
       if (reference.start(i) < start || reference.end(i) > end) continue;
       let inside = false;
-      for (let s = symbol.scopeId(symbolId); s !== null; s = scope.parentId(s)) {
-        if (s === fnScopeId) {
+      for (let s = symbol.scopeId(target); s !== null; s = scope.parentId(s)) {
+        if (s === fnScope) {
           inside = true;
           break;
         }
       }
       if (inside) continue;
-      let capture = captures.get(symbolId);
+      let capture = captures.get(target);
       if (capture === undefined) {
-        capture = { symbol: this.symbols[symbolId], references: [], isWritten: false };
-        captures.set(symbolId, capture);
+        capture = { binding: this.bindings[target], references: [], isWritten: false };
+        captures.set(target, capture);
       }
       capture.references.push(this.references[i]);
       if (reference.isWrite(i)) capture.isWritten = true;
@@ -421,68 +409,65 @@ export class Module {
     return [...captures.values()];
   }
 
-  walk(visitor, root) {
-    walkModule(this, visitor, root);
+  // GetExportedNames, 16.2.1.7.2.1
+  exportedNames(seen = new Set()) {
+    if (seen.has(this)) return [];
+    seen.add(this);
+    this.analyzer._link(this);
+    const names = new Set(this._exportMap().keys());
+    for (const star of this._starExports()) {
+      if (star._resolved === null) continue;
+      for (const name of star._resolved.exportedNames(seen)) {
+        if (name !== "default") names.add(name);
+      }
+    }
+    return [...names];
   }
 
-  walkAsync(visitor, root) {
-    return walkModuleAsync(this, visitor, root);
+  resolveExport(name) {
+    return this.analyzer._resolveExport(this, name);
+  }
+
+  walk(visitors, root) {
+    _walk(root ?? this.ast, visitors, undefined, new SemanticWalkContext(this));
+  }
+
+  walkAsync(visitors, root) {
+    return _walkAsync(root ?? this.ast, visitors, undefined, new SemanticWalkContext(this));
   }
 
   findAll(types) {
-    const single = typeof types === "string" ? types : null;
-    const set = single === null ? new Set(types) : null;
-    const out = [];
-    this.walk({
-      enter(node) {
-        if (single === null ? set.has(node.type) : node.type === single) out.push(node);
-      },
-    });
-    return out;
+    return findAll(this.ast, types);
   }
 
-  _symbolByIndex(index) {
-    const declared = this.#declMap().get(index);
-    if (declared !== undefined) return this.symbols[declared];
-    const ref = this.#refMap().get(index);
-    return ref !== undefined ? this.references[ref].symbol : null;
-  }
-
-  _referenceByIndex(index) {
-    const ref = this.#refMap().get(index);
-    return ref !== undefined ? this.references[ref] : null;
-  }
-
-  _scopeBindings(scopeId) {
+  _scopeBindings(scope) {
     if (this.#scopeBindings === null) {
       const lists = Array.from({ length: this.#sem.scope.count }, () => []);
-      for (const symbol of this.symbols) {
-        lists[this.#sem.symbol.scopeId(symbol.id)].push(symbol);
-      }
+      for (const binding of this.bindings) lists[binding.scope.id].push(binding);
       this.#scopeBindings = lists;
     }
-    return this.#scopeBindings[scopeId];
+    return this.#scopeBindings[scope];
   }
 
-  _referencesOfSymbol(symbolId) {
-    if (this.#symbolReferences === null) {
+  _bindingReferences(binding) {
+    if (this.#bindingReferences === null) {
       const lists = Array.from({ length: this.#sem.symbol.count }, () => []);
-      for (const ref of this.references) {
-        const s = this.#sem.reference.symbolId(ref.id);
-        if (s !== null) lists[s].push(ref);
+      for (const reference of this.references) {
+        const target = this.#sem.reference.symbolId(reference.id);
+        if (target !== null) lists[target].push(reference);
       }
-      this.#symbolReferences = lists;
+      this.#bindingReferences = lists;
     }
-    return this.#symbolReferences[symbolId];
+    return this.#bindingReferences[binding];
   }
 
-  // export-entry partition (ParseModule, 16.2.1.7.1)
+  // the export entry partition of ParseModule, 16.2.1.7.1
   _exportMap() {
     if (this.#exportMap === null) {
       const map = new Map();
       const stars = [];
       for (const record of this.exports) {
-        if (record.isStar) stars.push(record);
+        if (record.kind === "star") stars.push(record);
         else if (record.name !== null && !map.has(record.name)) map.set(record.name, record);
       }
       this.#exportMap = map;
@@ -496,46 +481,65 @@ export class Module {
     return this.#starExports;
   }
 
-  _importOfSymbol(symbolId) {
-    if (this.#importBySymbol === null) {
+  _importOf(binding) {
+    if (this.#importByBinding === null) {
       const map = new Map();
       for (const record of this.imports) {
         const local = record.local;
-        if (local !== null) map.set(local.id, record);
+        if (local !== null) map.set(local, record);
       }
-      this.#importBySymbol = map;
+      this.#importByBinding = map;
     }
-    return this.#importBySymbol.get(symbolId);
+    return this.#importByBinding.get(binding);
   }
 
   #rows(Row, count) {
-    const out = Array.from({ length: count });
+    const out = new Array(count);
     for (let i = 0; i < count; i++) out[i] = new Row(this, this.#sem, i);
     return out;
   }
 
-  #declMap() {
-    if (this.#declToSymbol === null) {
+  #declarationMap() {
+    if (this.#declarations === null) {
       const map = new Map();
       const { symbol } = this.#sem;
       for (let s = 0; s < symbol.count; s++) {
-        const len = symbol.declCount(s);
-        for (let i = 0; i < len; i++) map.set(symbol.declNodeIndex(s, i), s);
+        const count = symbol.declCount(s);
+        for (let i = 0; i < count; i++) map.set(symbol.declNodeIndex(s, i), s);
       }
-      this.#declToSymbol = map;
+      this.#declarations = map;
     }
-    return this.#declToSymbol;
+    return this.#declarations;
   }
 
-  #refMap() {
-    if (this.#nodeToReference === null) {
+  #referenceMap() {
+    if (this.#referenceNodes === null) {
       const map = new Map();
       const { reference } = this.#sem;
       for (let i = 0; i < reference.count; i++) map.set(reference.nodeIndex(i), i);
-      this.#nodeToReference = map;
+      this.#referenceNodes = map;
     }
-    return this.#nodeToReference;
+    return this.#referenceNodes;
   }
 }
 
-export { SymbolFlags };
+function isArgumentsScope(scope) {
+  if (scope.kind === "staticBlock") return true;
+  return scope.kind === "function" && scope.node.type !== "ArrowFunctionExpression";
+}
+
+function spans(node, offset) {
+  return node !== null && typeof node === "object" && node.start <= offset && offset < node.end;
+}
+
+function childAt(node, offset) {
+  for (const key of CHILD_KEYS[node.type] ?? []) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (const child of value) if (spans(child, offset)) return child;
+    } else if (spans(value, offset)) {
+      return value;
+    }
+  }
+  return null;
+}

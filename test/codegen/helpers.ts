@@ -1,10 +1,4 @@
-import {
-  parse,
-  langFromPath,
-  sourceTypeFromPath,
-  type ParseOptions,
-  type SourceLang,
-} from "yuku-parser";
+import { parse, type ParseOptions, type SourceLang } from "yuku-parser";
 import { generate, type GenerateOptions } from "yuku-codegen";
 
 export function gen(
@@ -14,8 +8,7 @@ export function gen(
   parseOptions: Partial<ParseOptions> = {},
 ): string {
   const ast = parse(source, {
-    lang: langFromPath(path),
-    sourceType: sourceTypeFromPath(path),
+    path,
     attachComments: true,
     ...parseOptions,
   });

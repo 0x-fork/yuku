@@ -8,6 +8,22 @@ type ModuleKind = "script" | "module";
 
 /** Language variant of the source code. */
 type SourceLang = "js" | "ts" | "jsx" | "tsx" | "dts";
+
+/** How a file is read, shared by every package that takes source text. */
+interface FileOptions {
+  /** Names the file. `lang` and `sourceType` default from its extension. */
+  path?: string;
+  /** @default "js", or from `path` */
+  lang?: SourceLang;
+  /**
+   * `"module"` is strict, with `import` and `export`. `"commonjs"` is a script whose top level is
+   * a function body, allowing `return`. `Program.sourceType` is `"script"` or `"module"`, per
+   * ESTree.
+   * @default "module", or "commonjs" for `.cjs` and `.cts` paths
+   */
+  sourceType?: SourceType;
+}
+
 /** Whether a comment came from a line or block source comment. */
 type CommentType = "Line" | "Block";
 
@@ -122,21 +138,20 @@ interface DiagnosticLabel {
 /** Severity level of a {@link Diagnostic}. */
 type DiagnosticSeverity = "error" | "warning" | "hint" | "info";
 
-/**
- * A diagnostic produced during parsing or semantic analysis.
- * The parser is error tolerant: an AST is always produced even when diagnostics exist.
- */
+/** A problem in the source, in the same shape from every package. */
 interface Diagnostic {
   severity: DiagnosticSeverity;
   message: string;
-  /** Fix suggestion, or `null` if unavailable. */
-  help: string | null;
+  /** The file it belongs to, or null when the source was given no path. */
+  path: string | null;
   /** UTF-16 offset. */
   start: number;
   /** UTF-16 offset. */
   end: number;
-  /** Additional source spans providing context. */
+  /** Related spans. */
   labels: DiagnosticLabel[];
+  /** A fix suggestion, or null. */
+  help: string | null;
 }
 
 /** Discriminant `type` string of every AST node. */
@@ -1796,6 +1811,7 @@ export type {
   Diagnostic,
   DiagnosticLabel,
   DiagnosticSeverity,
+  FileOptions,
   SourceType,
   ModuleKind,
   SourceLang,

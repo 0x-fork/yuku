@@ -1083,58 +1083,65 @@
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 336,
       "end": 340,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 384,
       "end": 385,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 430,
       "end": 431,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 477,
       "end": 478,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 525,
       "end": 529,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 574,
       "end": 575,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     },
     {
       "severity": "error",
       "message": "A required element cannot follow an optional element",
+      "path": null,
       "start": 584,
       "end": 585,
-      "help": "Mark this element optional, or move it before the optional ones.",
-      "labels": []
+      "labels": [],
+      "help": "Mark this element optional, or move it before the optional ones."
     }
   ]
 }

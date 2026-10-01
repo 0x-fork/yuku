@@ -1,141 +1,92 @@
 import type {
   Comment,
   Diagnostic,
-  DiagnosticSeverity,
+  FileOptions,
   Identifier,
   JSXIdentifier,
   Node,
   NodeOfType,
   NodeType,
   Program,
-  SourceLang,
-  SourceType,
   TokenList,
   WalkContext,
 } from "@yuku-toolchain/types";
-import type { langFromPath, sourceTypeFromPath } from "yuku-engine";
+import type { AliasMap, AliasName } from "yuku-ast";
 
-/** A diagnostic produced by {@link Analyzer.link}. */
-interface LinkDiagnostic {
-  severity: DiagnosticSeverity;
-  message: string;
-  /** Path of the module the diagnostic belongs to. */
-  module: string;
-  start: number;
-  end: number;
-}
-
-interface AddFileOptions {
-  /**
-   * Language variant. Defaults to the file extension via
-   * {@link langFromPath}.
-   */
-  lang?: SourceLang;
-  /**
-   * Parse as a script, an ES module, or a CommonJS module. Defaults to
-   * the file extension via {@link sourceTypeFromPath}.
-   */
-  sourceType?: SourceType;
-  /**
-   * Represent parenthesized expressions as `ParenthesizedExpression`
-   * nodes.
-   * @default true
-   */
+interface ParseOptions {
+  /** @default true */
   preserveParens?: boolean;
-  /**
-   * Attach comments to their host AST nodes.
-   * @default false
-   */
+  /** @default false */
   attachComments?: boolean;
-  /**
-   * Keep every token, see {@link Module.tokens}.
-   * @default false
-   */
+  /** Keep every token in {@link Module.tokens}. @default false */
   tokens?: boolean;
 }
 
+interface SetFileOptions extends Omit<FileOptions, "path">, ParseOptions {}
+
+interface AnalyzeOptions extends FileOptions, ParseOptions {}
+
 interface AnalyzerOptions {
   /**
-   * Host module resolution. Maps an import specifier and the importing
-   * module's path to the path of an added file, or null for external
-   * modules. Defaults to relative-path resolution among added files
-   * with standard extension and index probing.
+   * Maps an import specifier to the path of a file in the project. Return `false` for a module
+   * outside the project, such as a package, and `null` when it cannot be resolved, which is
+   * reported as a warning. Defaults to relative paths with extension and index probing.
    */
-  resolve?: (specifier: string, importerPath: string) => string | null;
+  resolve?: (specifier: string, importer: string) => string | false | null;
 }
 
-/**
- * Bit flags describing a {@link Symbol}: which declaration kinds it
- * carries (one symbol can merge several under TS declaration merging)
- * and its modifiers, plus a few composite categories. Every categorical
- * question about a symbol is `symbol.has(SymbolFlags.X)` (any of the
- * bits) or `symbol.hasAll(...)` (all of them); there is one way to ask.
- */
-declare const SymbolFlags: {
-  /** `var`, parameter, or catch variable. */
+/** Kinds and modifiers of a {@link Binding}, tested with `has` and `hasAll`. */
+declare const BindingFlags: {
+  /** `var`, a parameter, or a catch variable. */
   readonly FunctionScopedVariable: number;
-  /** `let`, `const`, `using`, `await using`. */
+  /** `let`, `const`, `using`, or `await using`. */
   readonly BlockScopedVariable: number;
-  /** Function declaration or expression. */
   readonly Function: number;
-  /** Class declaration or expression. */
   readonly Class: number;
-  /** TS `enum`. */
   readonly RegularEnum: number;
-  /** TS `const enum`. */
   readonly ConstEnum: number;
-  /** TS namespace with runtime content. */
+  /** A namespace with runtime content. */
   readonly ValueModule: number;
-  /** TS `interface`. */
   readonly Interface: number;
-  /** TS `type` alias. */
   readonly TypeAlias: number;
-  /** TS `<T>`, `infer T`, or mapped-type key. */
+  /** `<T>`, `infer T`, or a mapped type key. */
   readonly TypeParameter: number;
-  /** TS namespace of any kind. */
+  /** A namespace of any kind. */
   readonly NamespaceModule: number;
-  /** A value import binding (`import x` / `import { x }`). */
   readonly ValueImport: number;
-  /** `import type` / `import { type x }` binding. */
+  /** `import type` or `import { type x }`. */
   readonly TypeImport: number;
-  /** `const` or `using` binding. */
+  /** `const` or `using`. */
   readonly Const: number;
-  /** TS `declare`. */
+  /** `declare`. */
   readonly Ambient: number;
-  /** Function or method parameter. */
   readonly Parameter: number;
-  /** `catch (e)` binding. */
   readonly CatchVariable: number;
+  /** Declared by `export <declaration>`. */
   readonly Exported: number;
-  /** The default export. */
+  /** Declared by `export default`. */
   readonly Default: number;
-  /** A TS enum member, declared in its enum's body scope. */
   readonly EnumMember: number;
-
-  /** Composite: any variable (`var` / `let` / `const`, params, catch). */
+  /** Any variable, parameters and catch variables included. */
   readonly Variable: number;
-  /** Composite: any import binding, value or `import type`. */
+  /** Any import, value or type. */
   readonly Import: number;
-  /** Composite: visible at runtime, as a var, function, class, enum, or value namespace. */
+  /** Visible at runtime. */
   readonly ValueSpace: number;
-  /** Composite: usable as a type, as a class, enum, interface, alias, or type parameter. */
+  /** Usable as a type. */
   readonly TypeSpace: number;
-  /** Composite: what a dotted type name starts from (namespace, enum). */
+  /** What a dotted type name can start from. */
   readonly NamespaceSpace: number;
 };
 
 /**
- * The declaration space a reference position resolves in, matching
- * TypeScript name resolution. A binding outside a reference's space
- * does not shadow: an inner `const T` never captures a type-position
- * `T` away from an outer `type T`, and vice versa.
+ * The declaration space a name resolves in. A binding outside it does not shadow.
  *
  * - `"value"`: runtime uses
- * - `"type"`: annotations, heritage clauses, type arguments
- * - `"namespace"`: the qualifier of a dotted type name (`ns.T`, `E.A`)
- * - `"typeof"`: value uses inside a type (`typeof x`, `x is T` params)
- * - `"any"`: alias positions accepting every space (`export { x }`,
- *   `export default x`, `export = x`, `import a = x`)
+ * - `"type"`: type positions
+ * - `"namespace"`: the start of a dotted type name, `ns` in `ns.T`
+ * - `"typeof"`: a value inside a type, `x` in `typeof x`
+ * - `"any"`: alias positions, `x` in `export { x }`
  */
 type Space = "value" | "type" | "namespace" | "typeof" | "any";
 
@@ -143,148 +94,245 @@ type ScopeKind =
   | "global"
   | "module"
   | "function"
+  | "functionBody"
   | "block"
   | "class"
   | "staticBlock"
   | "expressionName"
-  | "tsModule"
-  | "functionBody";
+  | "tsModule";
+
+/**
+ * - `"named"`: `import x from "m"` and `import { x } from "m"`
+ * - `"namespace"`: `import * as ns from "m"`
+ * - `"sideEffect"`: `import "m"`
+ * - `"importEquals"`: `import ns = require("m")`
+ * - `"dynamic"`: `import("m")`
+ * - `"require"`: `require("m")`
+ */
+type ImportKind = "named" | "namespace" | "sideEffect" | "importEquals" | "dynamic" | "require";
+
+/**
+ * - `"named"`: `export const x`, `export { x }`, `export default x`
+ * - `"reExport"`: `export { x as y } from "m"`
+ * - `"namespace"`: `export * as ns from "m"`
+ * - `"star"`: `export * from "m"`
+ * - `"equals"`: `export = x`
+ * - `"global"`: `export as namespace N`
+ */
+type ExportKind = "named" | "reExport" | "namespace" | "star" | "equals" | "global";
+
+/** A set of modules and the links between them. */
+declare class Analyzer {
+  constructor(options?: AnalyzerOptions);
+  /** Analyzes a file, replacing any module at the same path. */
+  setFile(path: string, source: string, options?: SetFileOptions): Module;
+  /** Returns whether the file was in the project. */
+  deleteFile(path: string): boolean;
+  module(path: string): Module | undefined;
+  readonly modules: ReadonlyMap<string, Module>;
+  /** Every module's diagnostics, and the links that fail. */
+  readonly diagnostics: Diagnostic[];
+  /** Links the project now. Every cross-file query links on demand otherwise. */
+  link(): void;
+}
+
+/** One analyzed file. Every query is local except those that link. */
+interface Module {
+  readonly analyzer: Analyzer;
+  readonly path: string;
+  readonly source: string;
+  /** Its nodes are the objects every query returns. */
+  readonly ast: Program;
+  readonly comments: Comment[];
+  /** With {@link ParseOptions.tokens}. */
+  readonly tokens?: TokenList;
+  readonly diagnostics: Diagnostic[];
+  /** False once its path is set again or deleted. */
+  readonly isCurrent: boolean;
+
+  /** Every scope, indexed by id. The first is the global scope. */
+  readonly scopes: Scope[];
+  /** Where top-level code runs, the module scope or the global scope of a script. */
+  readonly rootScope: Scope;
+  /** Every binding, indexed by id. */
+  readonly bindings: Binding[];
+  /** Every name in use, in source order. */
+  readonly references: Reference[];
+  /** References with no binding, such as globals. */
+  readonly unresolvedReferences: Reference[];
+  readonly imports: Import[];
+  readonly exports: Export[];
+  readonly moduleFlags: ModuleFlags;
+  /** The modules it imports from. Links. */
+  readonly dependencies: Module[];
+  /** The modules that import from it. Links. */
+  readonly dependents: Module[];
+
+  /** The binding a node declares or refers to. */
+  bindingOf(node: Node): Binding | null;
+  referenceOf(node: Node): Reference | null;
+  /** The innermost scope around a node, the root scope for a node added later. */
+  scopeOf(node: Node): Scope;
+  parentOf(node: Node): Node | null;
+  /** The innermost node containing a UTF-16 offset. */
+  nodeAt(offset: number): Node | null;
+  /** Resolves a name as code at `from` would. */
+  lookup(name: string, options?: { from?: Scope; space?: Space }): Binding | null;
+  /** The outer bindings a function uses. Throws for a node that is not a function. */
+  capturesOf(fn: Node): Capture[];
+  /** Every name it exports, through `export *`. Links. */
+  exportedNames(): string[];
+  /** The binding behind one of its exports. Links. */
+  resolveExport(name: string): Definition | null;
+  /** Walks its AST, or the subtree under `root`, with the semantic context. */
+  walk(visitors: SemanticVisitors, root?: Node): void;
+  walkAsync(visitors: AsyncSemanticVisitors, root?: Node): Promise<void>;
+  /** Every node of the given types, in source order. */
+  findAll<K extends NodeType>(type: K): NodeOfType<K>[];
+  findAll<K extends NodeType>(types: Iterable<K>): NodeOfType<K>[];
+}
 
 interface Scope {
   readonly module: Module;
-  /** Stable id, the index into {@link Module.scopes}. */
   readonly id: number;
   readonly kind: ScopeKind;
   readonly strict: boolean;
-  /** The AST node that created this scope. */
+  /** The node that creates it. */
   readonly node: Node;
   readonly parent: Scope | null;
-  /** The nearest scope (or self) where `var` declarations land. */
+  /** Where a `var` declared in it lands. */
   readonly hoistTarget: Scope;
-  /** Symbols declared directly in this scope. */
-  readonly bindings: Symbol[];
-  /** Looks up `name` declared directly in this scope. */
-  find(name: string): Symbol | null;
-  /** True when `other` is this scope or a descendant of it. */
+  /** The bindings it declares. */
+  readonly bindings: Binding[];
+  /** A binding it declares by name. */
+  find(name: string): Binding | null;
+  /** Whether `other` is this scope or inside it. */
   contains(other: Scope): boolean;
-  /** Walks from this scope up to the global scope, inclusive. */
+  /** This scope, then each parent. */
   ancestors(): IterableIterator<Scope>;
 }
 
-/**
- * A declared binding. One symbol can have several declarations under
- * TS declaration merging (overloads, class + interface, namespace
- * merges).
- */
-interface Symbol {
+/** A declared name. Merged declarations, such as overloads, share one. */
+interface Binding {
   readonly module: Module;
-  /**
-   * Stable id, the index into {@link Module.symbols}. Deterministic per
-   * parse: `(module.path, id)` is a persistable key.
-   */
   readonly id: number;
   readonly name: string;
-  /** Raw {@link SymbolFlags} bitset. */
+  /** A {@link BindingFlags} bitset. */
   readonly flags: number;
   readonly scope: Scope;
-  /** Every declarator node, in source order. */
+  /** Each declaration's name node. */
   readonly declarations: Node[];
-  /** Every resolved use site within this module, in source order. */
+  /** Its uses in this module. */
   readonly references: Reference[];
-  /**
-   * True when any flag in `mask` is set. The single way to ask what a
-   * symbol is: `symbol.has(SymbolFlags.Function)`, or a composite like
-   * `symbol.has(SymbolFlags.ValueSpace)`.
-   */
+  /** Whether any flag in `mask` is set. */
   has(mask: number): boolean;
+  /** Whether every flag in `mask` is set. */
   hasAll(mask: number): boolean;
-  /**
-   * True when a reference resolving in `space` may bind to this
-   * symbol, the acceptance rule of name resolution. Import bindings
-   * alias symbols of unknowable space and are visible in every space.
-   */
+  /** Whether a name resolving in `space` can bind to it. */
   visibleIn(space: Space): boolean;
-  /**
-   * The defining site of this symbol, following import/re-export chains
-   * across modules. Shorthand for {@link Analyzer.definitionOf}.
-   */
+  /** Where it is defined, following imports across modules, itself when it is no import. Links. */
   definition(): Definition | null;
+  /** Its uses across the project, through every import of it. Links. */
+  findReferences(): Reference[];
 }
 
-/** One use of a name: a single identifier in reference position. */
+/** One use of a name. */
 interface Reference {
   readonly module: Module;
-  /** Stable id, the index into {@link Module.references}. */
   readonly id: number;
   readonly name: string;
   readonly scope: Scope;
-  /** The identifier node, the same object as in the walked AST. */
   readonly node: Identifier | JSXIdentifier;
-  /** The declaration {@link Space} this position resolves in. */
   readonly space: Space;
-  /**
-   * True when the position sits inside a type-only subtree (`"type"`,
-   * `"namespace"`, `"typeof"` spaces): erased at compile time, so a
-   * rename tool can change a value without touching a same-named type.
-   */
+  /** Whether the use is erased with the types. */
   readonly inTypePosition: boolean;
-  /**
-   * True when this reference (re)assigns its binding: assignment
-   * targets, `++`/`--` operands, for-in/of iteration variables, and
-   * destructuring assignment leaves. Compound targets (`+=`) both read
-   * and write.
-   */
+  /** Whether it assigns, as `x = 1`, `x++`, and `for (x of xs)` do. */
   readonly isWrite: boolean;
-  /**
-   * The symbol this resolves to, or null when no binding is visible
-   * in this reference's space (globals, undeclared names).
-   */
-  readonly symbol: Symbol | null;
+  /** Null for a global or undeclared name. */
+  readonly binding: Binding | null;
 }
 
-/**
- * The semantic walk context: the toolchain's {@link WalkContext} (the
- * same position info and mutation operations, exact same semantics)
- * plus the module's semantic surface. One object is reused across the
- * whole walk; do not hold onto it across nodes.
- *
- * On mutation: semantic tables are a snapshot of the parsed source, so
- * new nodes have no symbols, references, or spans of their own.
- * Analyze, transform, then print (or re-analyze the printed output for
- * fresh semantics).
- */
-declare class SemanticWalkContext<T extends Node = Node> extends WalkContext<T> {
-  /** The module being walked. Every semantic query is in reach. */
+interface Import {
   readonly module: Module;
-  /**
-   * The innermost scope at the current node, replayed from the native
-   * scope tree (catch-scope sharing, named-expression scopes, and
-   * hoist targets are all exact).
-   */
+  readonly id: number;
+  readonly kind: ImportKind;
+  /** The imported name of a `"named"` record, `"default"` for a default import. */
+  readonly name: string | null;
+  /** The binding it declares. */
+  readonly local: Binding | null;
+  /** Whether it binds a whole module, as `"namespace"` and `"importEquals"` do. */
+  readonly isNamespace: boolean;
+  readonly specifier: string;
+  readonly typeOnly: boolean;
+  readonly phase: "source" | "defer" | null;
+  /** The specifier, the declaration, or the call. */
+  readonly node: Node;
+  /** Null outside the project. Links. */
+  readonly resolvedModule: Module | null;
+}
+
+interface Export {
+  readonly module: Module;
+  readonly id: number;
+  readonly kind: ExportKind;
+  /** The exported name, null for `"star"`, `"equals"`, and `"global"`. */
+  readonly name: string | null;
+  /** The name of `export as namespace N`. */
+  readonly globalName: string | null;
+  /** The binding it exports from this module. */
+  readonly local: Binding | null;
+  /** The module it re-exports from. */
+  readonly specifier: string | null;
+  /** The name a `"reExport"` takes from its module. */
+  readonly fromName: string | null;
+  readonly typeOnly: boolean;
+  /** The specifier, the declaration, or the statement. */
+  readonly node: Node;
+  /** The module it re-exports from, null outside the project. Links. */
+  readonly resolvedModule: Module | null;
+}
+
+/** What a script reads from CommonJS and `import.meta`. */
+interface ModuleFlags {
+  readonly usesRequire: boolean;
+  readonly usesModule: boolean;
+  readonly usesExports: boolean;
+  readonly usesImportMeta: boolean;
+}
+
+/** Where a name is defined. A null binding is a whole module namespace. */
+interface Definition {
+  readonly module: Module;
+  readonly binding: Binding | null;
+}
+
+interface Capture {
+  readonly binding: Binding;
+  /** Its uses inside the function. */
+  readonly references: Reference[];
+  readonly isWritten: boolean;
+}
+
+/** The {@link WalkContext} of `yuku-ast`, with the semantic model at the current node. */
+declare class SemanticWalkContext<T extends Node = Node> extends WalkContext<T> {
+  readonly module: Module;
   readonly scope: Scope;
-  /** Shorthand for `module.symbolOf(node)`. */
-  readonly symbol: Symbol | null;
-  /** Shorthand for `module.referenceOf(node)`. */
+  readonly binding: Binding | null;
   readonly reference: Reference | null;
 }
 
-type SemanticWalkHandler<T extends Node = Node> = (
-  node: T,
-  ctx: SemanticWalkContext<T>,
-) => void;
+type SemanticWalkHandler<T extends Node = Node> = (node: T, ctx: SemanticWalkContext<T>) => void;
 
 interface SemanticWalkHooks<T extends Node = Node> {
   enter?: SemanticWalkHandler<T>;
   leave?: SemanticWalkHandler<T>;
 }
 
-/**
- * Visitors passed to {@link Module.walk}: keys are node `type` strings, plus optional `enter` and
- * `leave` catch-alls. Order per node: catch-all `enter`, typed enter, children, typed leave,
- * catch-all `leave`.
- */
+/** Handlers keyed by node type or alias group, with `enter` and `leave` for every node. */
 type SemanticVisitors = {
   [K in NodeType]?: SemanticWalkHandler<NodeOfType<K>> | SemanticWalkHooks<NodeOfType<K>>;
+} & {
+  [A in AliasName]?: SemanticWalkHandler<AliasMap[A]> | SemanticWalkHooks<AliasMap[A]>;
 } & {
   enter?: SemanticWalkHandler;
   leave?: SemanticWalkHandler;
@@ -305,364 +353,33 @@ type AsyncSemanticVisitors = {
     | AsyncSemanticWalkHandler<NodeOfType<K>>
     | AsyncSemanticWalkHooks<NodeOfType<K>>;
 } & {
+  [A in AliasName]?: AsyncSemanticWalkHandler<AliasMap[A]> | AsyncSemanticWalkHooks<AliasMap[A]>;
+} & {
   enter?: AsyncSemanticWalkHandler;
   leave?: AsyncSemanticWalkHandler;
 };
 
-/** A free variable of a function, as reported by {@link Module.capturesOf}. */
-interface Capture {
-  /** The outer binding being closed over. */
-  readonly symbol: Symbol;
-  /** The capturing reference sites inside the function. */
-  readonly references: Reference[];
-  /** True when the function writes to the binding. */
-  readonly isWritten: boolean;
-}
-
-/**
- * The form of an {@link Import} record, the field every other one is
- * derived from.
- *
- * - `"named"`: `import x from "m"`, `import { x } from "m"`
- * - `"namespace"`: `import * as ns from "m"`
- * - `"sideEffect"`: bare `import "m"`
- * - `"importEquals"`: TS `import ns = require("m")`
- * - `"dynamic"`: `import("m")` with a literal specifier
- * - `"require"`: `require("m")` where `require` is a free name
- */
-type ImportKind = "named" | "namespace" | "sideEffect" | "importEquals" | "dynamic" | "require";
-
-/** One imported binding (or side-effect import) of a module. */
-interface Import {
-  readonly module: Module;
-  /** Stable id, the index into {@link Module.imports}. */
-  readonly id: number;
-  readonly kind: ImportKind;
-  /**
-   * The local binding symbol, or null when nothing binds (side-effect,
-   * dynamic, and `require` records).
-   */
-  readonly local: Symbol | null;
-  /**
-   * The imported export name of a `"named"` record, `"default"` for
-   * default imports (the spec models default as a name). Null for
-   * every other kind.
-   */
-  readonly name: string | null;
-  /**
-   * True when the record binds a whole module namespace: `"namespace"`
-   * and `"importEquals"`.
-   */
-  readonly isNamespace: boolean;
-  readonly isSideEffect: boolean;
-  readonly isDynamic: boolean;
-  readonly isRequire: boolean;
-  /** True for `import type` / `import { type x }`. */
-  readonly typeOnly: boolean;
-  readonly phase: "source" | "defer" | null;
-  readonly specifier: string;
-  /**
-   * The specifier node: the import specifier for `"named"` and
-   * `"namespace"`, the declaration for `"sideEffect"` and
-   * `"importEquals"`, and the `import()` / `require()` call itself for
-   * `"dynamic"` and `"require"`.
-   */
-  readonly node: Node;
-  /** The defining module, or null when external. Links on demand. */
-  readonly resolvedModule: Module | null;
-}
-
-/**
- * The form of an {@link Export} record, the field every other one is
- * derived from.
- *
- * - `"named"`: `export const x`, `export { x }`, `export default x`
- * - `"reExport"`: `export { x as y } from "m"`
- * - `"namespace"`: `export * as ns from "m"`
- * - `"star"`: `export * from "m"`
- * - `"equals"`: TS `export = expr`
- * - `"global"`: TS `export as namespace N`
- */
-type ExportKind = "named" | "reExport" | "namespace" | "star" | "equals" | "global";
-
-interface Export {
-  readonly module: Module;
-  /** Stable id, the index into {@link Module.exports}. */
-  readonly id: number;
-  readonly kind: ExportKind;
-  /**
-   * The exported name (`"default"` included), or null for `export *`,
-   * `export =`, and `export as namespace`.
-   */
-  readonly name: string | null;
-  /** True for `export * from "m"` without an alias. */
-  readonly isStar: boolean;
-  /** True for TS `export = expr` (the module's entire export value). */
-  readonly isExportEquals: boolean;
-  /** The TS `export as namespace N` global name, or null. */
-  readonly globalName: string | null;
-  readonly typeOnly: boolean;
-  /** The backing local symbol, or null (re-exports, anonymous defaults). */
-  readonly local: Symbol | null;
-  /** The re-export source specifier, or null for local exports. */
-  readonly specifier: string | null;
-  /** The name taken from the source module, or null (namespace / `export *`). */
-  readonly fromName: string | null;
-  /** True for `export * as ns from "m"`, which binds the namespace itself. */
-  readonly isNamespaceReexport: boolean;
-  /** The specifier, declaration, or statement node behind this record. */
-  readonly node: Node;
-  /** The re-export source module, or null. Links on demand. */
-  readonly resolvedModule: Module | null;
-}
-
-/**
- * One analyzed source file: its AST, per-file semantics, and module
- * records. Created by {@link Analyzer.addFile}. All queries are local
- * (no native calls).
- */
-interface Module {
-  readonly analyzer: Analyzer;
-  readonly path: string;
-  readonly source: string;
-
-  /**
-   * The ESTree / TypeScript-ESTree program. Lazily decoded. Nodes are
-   * identity-shared with every semantic query result.
-   *
-   * Nodes are plain mutable objects: edit them in place, mutate them
-   * during a walk with {@link WalkContext.replace} and friends, and
-   * print the result with `yuku-codegen`. Semantic tables stay a
-   * snapshot of the parsed source and do not track mutations.
-   */
-  readonly ast: Program;
-  /** Syntax and semantic diagnostics for this file. */
-  readonly diagnostics: Diagnostic[];
-  /** Every comment in source order. */
-  readonly comments: Comment[];
-  /** Every token in source order, with {@link AddFileOptions.tokens}. */
-  readonly tokens?: TokenList;
-
-  /** Every lexical scope; index is the scope id. `scopes[0]` is global. */
-  readonly scopes: Scope[];
-  /** The scope top-level code runs in: module scope, or global for scripts. */
-  readonly rootScope: Scope;
-  /** Every declared symbol; index is the symbol id. */
-  readonly symbols: Symbol[];
-  /** Every identifier reference in source order; index is the reference id. */
-  readonly references: Reference[];
-  /** References resolving to no binding: globals and free names. */
-  readonly unresolvedReferences: Reference[];
-  /**
-   * CommonJS classification signals for this file. Runtime `exports`
-   * assignments have no sound static shape and never become
-   * {@link Export} records, so these flags classify the file instead.
-   */
-  readonly moduleFlags: ModuleFlags;
-
-  /**
-   * The symbol a node refers to: its own symbol for a declaration
-   * identifier, the resolved symbol for a reference identifier. Null
-   * for nodes that are neither, or for unresolved references.
-   */
-  symbolOf(node: Node): Symbol | null;
-  referenceOf(node: Node): Reference | null;
-  /**
-   * The innermost scope whose extent contains `node`, or the module's
-   * root scope for a node not produced by this module's analysis.
-   */
-  scopeOf(node: Node): Scope;
-  /**
-   * The node that structurally contains `node`. Null at the program
-   * root and for a node not part of this module's AST. Lets you walk
-   * upward from a node you already hold, with no ancestor stack.
-   */
-  parentOf(node: Node): Node | null;
-  /**
-   * Walks the scope chain from `from` (default: the root scope) to
-   * find the nearest binding of `name` visible in `space` (default:
-   * `"value"`, resolving like runtime code). A binding outside the
-   * space does not shadow, the walk keeps going. `"any"` matches by
-   * name alone. A value-position `arguments` lookup stops at the
-   * first non-arrow function or static block, where the implicit
-   * arguments object shadows any outer binding of that name.
-   */
-  resolve(name: string, from?: Scope, space?: Space): Symbol | null;
-  /**
-   * The free variables of a function or arrow: every binding referenced
-   * inside it (nested closures included, value positions only) that is
-   * declared outside it. Shadowing- and alias-correct, because it rides
-   * the resolved reference table.
-   *
-   * Only bindings count: `this`, `arguments`, and unresolved/global
-   * names carry no symbol and never appear. Module-scope and import
-   * bindings count like any other outer binding; filter on the
-   * symbol's scope to narrow.
-   *
-   * Throws when `node` is not a function of this module's AST.
-   */
-  capturesOf(node: Node): Capture[];
-  /**
-   * Every name this module exports, directly or through `export *`
-   * chains (the spec's GetExportedNames). Ambiguous star names are
-   * included; `"default"` never crosses an `export *` boundary. Links
-   * on demand.
-   */
-  exportedNames(): string[];
-
-  /**
-   * Walks the AST (or the subtree under `root`) with semantic context.
-   * Scope information is replayed from the native scope tree, so
-   * non-scope nodes pay a single type lookup and nothing else.
-   */
-  walk(visitors: SemanticVisitors, root?: Node): void;
-
-  /**
-   * The async counterpart of {@link Module.walk}: identical traversal
-   * order and mutation semantics, with every handler awaited before
-   * the walk moves on.
-   */
-  walkAsync(visitors: AsyncSemanticVisitors, root?: Node): Promise<void>;
-
-  /** Collects every node of the given type(s), in source order. */
-  findAll<K extends NodeType>(type: K): NodeOfType<K>[];
-  findAll<K extends NodeType>(types: Iterable<K>): NodeOfType<K>[];
-
-  /** Import records, in source order. */
-  readonly imports: Import[];
-  /** Export records, in source order. */
-  readonly exports: Export[];
-  /** Modules this module imports from. Links on demand. */
-  readonly dependencies: Module[];
-  /** Modules that import from this module. Links on demand. */
-  readonly dependents: Module[];
-}
-
-interface ModuleFlags {
-  /** The file calls a free `require`. */
-  readonly usesRequire: boolean;
-  /** The file references a free `module`. */
-  readonly usesModule: boolean;
-  /** The file references a free `exports`. */
-  readonly usesExports: boolean;
-  readonly usesImportMeta: boolean;
-}
-
-/** A symbol's defining site, possibly in another module. */
-interface Definition {
-  readonly module: Module;
-  /**
-   * The defining symbol, or null when the definition is a whole module
-   * namespace (`import * as ns`, `export * as ns`).
-   */
-  readonly symbol: Symbol | null;
-}
-
-interface ModuleReference {
-  readonly module: Module;
-  readonly reference: Reference;
-}
-
-interface AnalyzeOptions extends AddFileOptions {
-  /**
-   * The path recorded on the module, also the default source of
-   * `lang` and `sourceType`.
-   * @default "input.js"
-   */
-  path?: string;
-}
-
-/**
- * Parses and analyzes a single file, the shorthand for one-file
- * semantics: scopes, symbols, resolved references, and a semantic
- * walk. Cross-file surfaces stay empty, use {@link Analyzer} and
- * {@link Analyzer.addFile} for multi-file projects and linking.
- *
- * ```ts
- * const module = analyze(`const x = 1; x;`, { lang: "ts" });
- * module.walk({ Identifier(node, ctx) { ctx.symbol; } });
- * ```
- */
+/** Analyzes one file. */
 declare function analyze(source: string, options?: AnalyzeOptions): Module;
-
-/**
- * The project: a set of analyzed modules and the links between them.
- *
- * ```ts
- * const analyzer = new Analyzer();
- * analyzer.addFile("src/app.tsx", source);
- * const sym = analyzer.module("src/app.tsx")!.symbolOf(node);
- * const def = sym?.definition();
- * ```
- */
-declare class Analyzer {
-  constructor(options?: AnalyzerOptions);
-
-  /**
-   * Parses and analyzes one file natively, returning its {@link Module}.
-   * Adding an existing path replaces it and marks the graph for
-   * relinking.
-   */
-  addFile(path: string, source: string, options?: AddFileOptions): Module;
-  /** Removes a file. Returns whether it existed. */
-  removeFile(path: string): boolean;
-  module(path: string): Module | undefined;
-  /** All modules, keyed by path. */
-  readonly modules: ReadonlyMap<string, Module>;
-  /** Graph-level diagnostics. Links on demand. */
-  readonly diagnostics: LinkDiagnostic[];
-
-  /**
-   * Joins imports to exports across every added module: resolves
-   * specifiers through the host resolver, populates
-   * {@link Import.resolvedModule}, {@link Module.dependencies} /
-   * {@link Module.dependents}, and reports unresolvable or ambiguous
-   * names. Resolution follows the spec's ResolveExport semantics: a
-   * name supplied by multiple `export *` declarations through
-   * different bindings is an error, and `"default"` is never satisfied
-   * by `export *`.
-   *
-   * Calling this is optional: every cross-file surface links on demand
-   * after files change. Call it explicitly to control when the work
-   * (and its diagnostics) happen.
-   */
-  link(): void;
-
-  /**
-   * Follows import -> export -> re-export chains to the symbol that
-   * actually defines `symbol`. A null `symbol` in the result means a
-   * module namespace. Returns null when the chain leaves the added
-   * file set (external modules), does not resolve, or is ambiguous.
-   */
-  definitionOf(symbol: Symbol): Definition | null;
-
-  /**
-   * Every reference to `symbol` across the whole graph: local uses
-   * plus uses of every import binding that resolves back to it.
-   */
-  referencesOf(symbol: Symbol): ModuleReference[];
-}
 
 export {
   analyze,
   Analyzer,
-  SymbolFlags,
-  type AddFileOptions,
+  BindingFlags,
   type AnalyzeOptions,
   type AnalyzerOptions,
   type AsyncSemanticVisitors,
   type AsyncSemanticWalkHandler,
   type AsyncSemanticWalkHooks,
+  type Binding,
   type Capture,
   type Definition,
   type Export,
   type ExportKind,
   type Import,
   type ImportKind,
-  type LinkDiagnostic,
   type Module,
   type ModuleFlags,
-  type ModuleReference,
   type Reference,
   type Scope,
   type ScopeKind,
@@ -670,6 +387,6 @@ export {
   type SemanticWalkContext,
   type SemanticWalkHandler,
   type SemanticWalkHooks,
+  type SetFileOptions,
   type Space,
-  type Symbol,
 };

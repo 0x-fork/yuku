@@ -282,9 +282,9 @@
     {
       "severity": "error",
       "message": "Identifier 'A1' has already been declared",
+      "path": null,
       "start": 120,
       "end": 122,
-      "help": "Consider removing or renaming this declaration of 'A1'",
       "labels": [
         {
           "start": 102,
@@ -296,14 +296,15 @@
           "end": 122,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'A1'"
     },
     {
       "severity": "error",
       "message": "Identifier 'A2' has already been declared",
+      "path": null,
       "start": 188,
       "end": 190,
-      "help": "Consider removing or renaming this declaration of 'A2'",
       "labels": [
         {
           "start": 165,
@@ -315,14 +316,15 @@
           "end": 190,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'A2'"
     },
     {
       "severity": "error",
       "message": "Identifier 'A3' has already been declared",
+      "path": null,
       "start": 286,
       "end": 288,
-      "help": "Consider removing or renaming this declaration of 'A3'",
       "labels": [
         {
           "start": 261,
@@ -334,14 +336,15 @@
           "end": 288,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'A3'"
     },
     {
       "severity": "error",
       "message": "Identifier 'A4' has already been declared",
+      "path": null,
       "start": 346,
       "end": 348,
-      "help": "Consider removing or renaming this declaration of 'A4'",
       "labels": [
         {
           "start": 327,
@@ -353,7 +356,8 @@
           "end": 348,
           "message": "cannot be redeclared here"
         }
-      ]
+      ],
+      "help": "Consider removing or renaming this declaration of 'A4'"
     }
   ]
 }

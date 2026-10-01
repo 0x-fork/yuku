@@ -248,50 +248,56 @@
     {
       "severity": "error",
       "message": "A namespace declaration requires a body",
+      "path": null,
       "start": 157,
       "end": 175,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     },
     {
       "severity": "error",
       "message": "A namespace declaration requires a body",
+      "path": null,
       "start": 177,
       "end": 205,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     },
     {
       "severity": "error",
       "message": "A module declaration requires a body",
+      "path": null,
       "start": 207,
       "end": 228,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     },
     {
       "severity": "error",
       "message": "A namespace declaration requires a body",
+      "path": null,
       "start": 230,
       "end": 263,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     },
     {
       "severity": "error",
       "message": "A module declaration requires a body",
+      "path": null,
       "start": 265,
       "end": 301,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     },
     {
       "severity": "error",
       "message": "A namespace declaration requires a body",
+      "path": null,
       "start": 303,
       "end": 324,
-      "help": "Add a '{ }' body after the name.",
-      "labels": []
+      "labels": [],
+      "help": "Add a '{ }' body after the name."
     }
   ]
 }

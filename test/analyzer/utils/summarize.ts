@@ -1,28 +1,23 @@
 import {
+  analyze,
   Analyzer,
-  SymbolFlags,
-  type AddFileOptions,
+  BindingFlags,
+  type AnalyzeOptions,
+  type Binding,
   type Export,
   type Import,
   type Module,
   type Reference,
   type Scope,
-  type Symbol,
 } from "yuku-analyzer";
 import type { Node } from "yuku-parser";
 
-export interface SummaryOptions extends AddFileOptions {
-  /** Drives lang/sourceType the way a real path would. @default "input.ts" */
-  path?: string;
-}
-
-function analyzeOne(source: string, options: SummaryOptions): Module {
-  const { path = "input.ts", ...rest } = options;
-  return new Analyzer().addFile(path, source, rest);
+function analyzeOne(source: string, options: AnalyzeOptions): Module {
+  return analyze(source, { path: "input.ts", ...options });
 }
 
 /** Analyzes one file and renders its full semantic model as canonical text. */
-export function summary(source: string, options: SummaryOptions = {}): string {
+export function summary(source: string, options: AnalyzeOptions = {}): string {
   const module = analyzeOne(source, options);
   const lines: string[] = [];
 
@@ -60,7 +55,7 @@ function renderScope(
   const inner = "  ".repeat(depth + 1);
 
   lines.push(pad + scopeHeader(scope));
-  for (const symbol of scope.bindings) lines.push(inner + bindingRow(symbol));
+  for (const binding of scope.bindings) lines.push(inner + bindingRow(binding));
   for (const reference of referencesByScope.get(scope.id) ?? []) {
     lines.push(inner + referenceRow(reference));
   }
@@ -97,14 +92,14 @@ function scopeLabel(scope: Scope): string {
   }
 }
 
-function bindingRow(symbol: Symbol): string {
-  const count = symbol.declarations.length;
+function bindingRow(binding: Binding): string {
+  const count = binding.declarations.length;
   const merged = count > 1 ? ` ×${count}` : "";
-  return `${symbol.name}#${symbol.id}  ${flagWords(symbol.flags)}${merged}`;
+  return `${binding.name}#${binding.id}  ${flagWords(binding.flags)}${merged}`;
 }
 
 function referenceRow(reference: Reference): string {
-  const target = reference.symbol ? `#${reference.symbol.id}` : "free";
+  const target = reference.binding ? `#${reference.binding.id}` : "free";
   const write = reference.isWrite ? " write" : "";
   const space = reference.space === "value" ? "" : ` ${reference.space}`;
   return `${reference.name} → ${target}${write}${space}`;
@@ -113,35 +108,35 @@ function referenceRow(reference: Reference): string {
 // the variable kind folds in its modifiers, so each binding reads as one kind plus qualifiers
 function flagWords(flags: number): string {
   const words: string[] = [];
-  if (flags & SymbolFlags.FunctionScopedVariable) {
-    if (flags & SymbolFlags.Parameter) words.push("param");
-    else if (flags & SymbolFlags.CatchVariable) words.push("catch");
+  if (flags & BindingFlags.FunctionScopedVariable) {
+    if (flags & BindingFlags.Parameter) words.push("param");
+    else if (flags & BindingFlags.CatchVariable) words.push("catch");
     else words.push("var");
   }
-  if (flags & SymbolFlags.BlockScopedVariable) {
-    words.push(flags & SymbolFlags.Const ? "const" : "let");
+  if (flags & BindingFlags.BlockScopedVariable) {
+    words.push(flags & BindingFlags.Const ? "const" : "let");
   }
-  if (flags & SymbolFlags.Function) words.push("function");
-  if (flags & SymbolFlags.Class) words.push("class");
-  if (flags & SymbolFlags.RegularEnum) words.push("enum");
-  if (flags & SymbolFlags.ConstEnum) words.push("const-enum");
-  if (flags & SymbolFlags.NamespaceModule) words.push("namespace");
-  if (flags & SymbolFlags.ValueModule) words.push("value-module");
-  if (flags & SymbolFlags.Interface) words.push("interface");
-  if (flags & SymbolFlags.TypeAlias) words.push("type");
-  if (flags & SymbolFlags.TypeParameter) words.push("type-param");
-  if (flags & SymbolFlags.ValueImport) words.push("import");
-  if (flags & SymbolFlags.TypeImport) words.push("type-import");
-  if (flags & SymbolFlags.Ambient) words.push("ambient");
-  if (flags & SymbolFlags.Exported) words.push("exported");
-  if (flags & SymbolFlags.Default) words.push("default");
+  if (flags & BindingFlags.Function) words.push("function");
+  if (flags & BindingFlags.Class) words.push("class");
+  if (flags & BindingFlags.RegularEnum) words.push("enum");
+  if (flags & BindingFlags.ConstEnum) words.push("const-enum");
+  if (flags & BindingFlags.NamespaceModule) words.push("namespace");
+  if (flags & BindingFlags.ValueModule) words.push("value-module");
+  if (flags & BindingFlags.Interface) words.push("interface");
+  if (flags & BindingFlags.TypeAlias) words.push("type");
+  if (flags & BindingFlags.TypeParameter) words.push("type-param");
+  if (flags & BindingFlags.ValueImport) words.push("import");
+  if (flags & BindingFlags.TypeImport) words.push("type-import");
+  if (flags & BindingFlags.Ambient) words.push("ambient");
+  if (flags & BindingFlags.Exported) words.push("exported");
+  if (flags & BindingFlags.Default) words.push("default");
   return words.join(" ");
 }
 
 function importRow(record: Import): string {
   const mods = (record.typeOnly ? " type" : "") + (record.phase ? ` phase:${record.phase}` : "");
   const specifier = `from "${record.specifier}"`;
-  if (record.isSideEffect) return `(side-effect) ${specifier}${mods}`;
+  if (record.kind === "sideEffect") return `(side-effect) ${specifier}${mods}`;
   const local = record.local ? `#${record.local.id}` : "–";
   if (record.isNamespace) return `* as ${local} ${specifier}${mods}`;
   return `${record.name} → ${local} ${specifier}${mods}`;
@@ -149,12 +144,12 @@ function importRow(record: Import): string {
 
 function exportRow(record: Export): string {
   const type = record.typeOnly ? " type" : "";
-  if (record.isExportEquals) return "export=";
+  if (record.kind === "equals") return "export=";
   if (record.globalName !== null) return `export as namespace ${record.globalName}`;
-  if (record.isStar) return `* from "${record.specifier}"${type}`;
+  if (record.kind === "star") return `* from "${record.specifier}"${type}`;
   if (record.specifier !== null) {
     const source = `from "${record.specifier}"`;
-    if (record.isNamespaceReexport) return `* as ${record.name} ${source}${type}`;
+    if (record.kind === "namespace") return `* as ${record.name} ${source}${type}`;
     const from =
       record.fromName === record.name ? `${record.name}` : `${record.fromName} as ${record.name}`;
     return `${from} ${source}${type}`;
@@ -192,13 +187,13 @@ const FUNCTION_TYPES = [
 ] as const;
 
 /** Dumps the free variables of every function in the file, in source order. */
-export function captures(source: string, options: SummaryOptions = {}): string {
+export function captures(source: string, options: AnalyzeOptions = {}): string {
   const module = analyzeOne(source, options);
   const lines: string[] = [];
   for (const fn of module.findAll(FUNCTION_TYPES)) {
     const caps = module
       .capturesOf(fn)
-      .map((c) => `${c.symbol.name}#${c.symbol.id}${c.isWritten ? "(w)" : ""}`);
+      .map((c) => `${c.binding.name}#${c.binding.id}${c.isWritten ? "(w)" : ""}`);
     lines.push(`${functionLabel(fn)}  captures: ${caps.length > 0 ? caps.join(", ") : "(none)"}`);
   }
   return lines.join("\n");
@@ -214,7 +209,7 @@ function functionLabel(node: Node): string {
 /** Builds a multi-file analyzer from a path→source map (no auto-link). */
 export function project(files: Record<string, string>): Analyzer {
   const analyzer = new Analyzer();
-  for (const [path, source] of Object.entries(files)) analyzer.addFile(path, source);
+  for (const [path, source] of Object.entries(files)) analyzer.setFile(path, source);
   return analyzer;
 }
 
@@ -228,7 +223,7 @@ export function links(files: Record<string, string>): string {
   const lines: string[] = ["diagnostics"];
   if (analyzer.diagnostics.length === 0) lines.push("  (none)");
   for (const diagnostic of analyzer.diagnostics) {
-    lines.push(`  ${diagnostic.module}: ${diagnostic.message}`);
+    lines.push(`  ${diagnostic.path}: ${diagnostic.message}`);
   }
   lines.push("graph");
   for (const module of analyzer.modules.values()) {
@@ -242,25 +237,25 @@ export function links(files: Record<string, string>): string {
   return lines.join("\n");
 }
 
-function bindingOf(analyzer: Analyzer, path: string, name: string): Symbol {
+function bindingOf(analyzer: Analyzer, path: string, name: string): Binding {
   const module = analyzer.module(path);
   if (module === undefined) throw new Error(`no module ${path}`);
-  const symbol = module.resolve(name, module.rootScope, "any");
-  if (symbol === null) throw new Error(`no binding ${name} in ${path}`);
-  return symbol;
+  const binding = module.lookup(name, { space: "any" });
+  if (binding === null) throw new Error(`no binding ${name} in ${path}`);
+  return binding;
 }
 
-/** Formats `definitionOf` for the binding named `name` in module `path`. */
+/** Formats `definition()` for the binding named `name` in module `path`. */
 export function definition(analyzer: Analyzer, path: string, name: string): string {
-  const def = analyzer.definitionOf(bindingOf(analyzer, path, name));
+  const def = bindingOf(analyzer, path, name).definition();
   if (def === null) return "(none)";
-  return `${def.module.path}:${def.symbol ? def.symbol.name : "(namespace)"}`;
+  return `${def.module.path}:${def.binding ? def.binding.name : "(namespace)"}`;
 }
 
-/** Formats `referencesOf` for the binding named `name` in module `path`. */
+/** Formats `findReferences()` for the binding named `name` in module `path`. */
 export function references(analyzer: Analyzer, path: string, name: string): string {
-  return analyzer
-    .referencesOf(bindingOf(analyzer, path, name))
-    .map((r) => `${r.module.path}:${r.reference.name}${r.reference.isWrite ? "(w)" : ""}`)
+  return bindingOf(analyzer, path, name)
+    .findReferences()
+    .map((r) => `${r.module.path}:${r.name}${r.isWrite ? "(w)" : ""}`)
     .join(", ");
 }

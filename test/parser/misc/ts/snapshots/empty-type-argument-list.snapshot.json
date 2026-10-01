@@ -244,34 +244,38 @@
     {
       "severity": "error",
       "message": "A type argument list cannot be empty",
+      "path": null,
       "start": 235,
       "end": 237,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "A type argument list cannot be empty",
+      "path": null,
       "start": 259,
       "end": 260,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "A type argument list cannot be empty",
+      "path": null,
       "start": 276,
       "end": 277,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "A type parameter list cannot be empty",
+      "path": null,
       "start": 293,
       "end": 294,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

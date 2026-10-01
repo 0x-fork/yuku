@@ -85,10 +85,11 @@
     {
       "severity": "error",
       "message": "A declaration with a definite assignment assertion must also have a type annotation",
+      "path": null,
       "start": 85,
       "end": 86,
-      "help": "Annotate the declaration, for example 'x!: string'.",
-      "labels": []
+      "labels": [],
+      "help": "Annotate the declaration, for example 'x!: string'."
     }
   ]
 }

@@ -813,34 +813,38 @@
     {
       "severity": "error",
       "message": "A parameter property may not be declared using a binding pattern",
+      "path": null,
       "start": 212,
       "end": 214,
-      "help": "Name the parameter, then destructure it inside the constructor body.",
-      "labels": []
+      "labels": [],
+      "help": "Name the parameter, then destructure it inside the constructor body."
     },
     {
       "severity": "error",
       "message": "A parameter property may not be declared using a binding pattern",
+      "path": null,
       "start": 267,
       "end": 269,
-      "help": "Name the parameter, then destructure it inside the constructor body.",
-      "labels": []
+      "labels": [],
+      "help": "Name the parameter, then destructure it inside the constructor body."
     },
     {
       "severity": "error",
       "message": "A parameter property may not be declared using a binding pattern",
+      "path": null,
       "start": 327,
       "end": 333,
-      "help": "Name the parameter, then destructure it inside the constructor body.",
-      "labels": []
+      "labels": [],
+      "help": "Name the parameter, then destructure it inside the constructor body."
     },
     {
       "severity": "error",
       "message": "A parameter property may not be declared using a binding pattern",
+      "path": null,
       "start": 392,
       "end": 404,
-      "help": "Name the parameter, then destructure it inside the constructor body.",
-      "labels": []
+      "labels": [],
+      "help": "Name the parameter, then destructure it inside the constructor body."
     }
   ]
 }

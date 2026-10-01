@@ -55,10 +55,11 @@
     {
       "severity": "error",
       "message": "for-in loop variable declaration may not have an initializer",
+      "path": null,
       "start": 9,
       "end": 14,
-      "help": "Remove the initializer from the loop variable.",
-      "labels": []
+      "labels": [],
+      "help": "Remove the initializer from the loop variable."
     }
   ]
 }

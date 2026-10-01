@@ -444,58 +444,65 @@
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 17,
       "end": 20,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 48,
       "end": 52,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 80,
       "end": 85,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 113,
       "end": 120,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 150,
       "end": 157,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 191,
       "end": 196,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     },
     {
       "severity": "error",
       "message": "Computed property names are not allowed in enums",
+      "path": null,
       "start": 234,
       "end": 239,
-      "help": "Name the member with an identifier or a string literal.",
-      "labels": []
+      "labels": [],
+      "help": "Name the member with an identifier or a string literal."
     }
   ]
 }

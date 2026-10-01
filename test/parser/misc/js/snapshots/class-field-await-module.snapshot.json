@@ -71,10 +71,11 @@
     {
       "severity": "error",
       "message": "'await' is reserved in an async/module context and cannot be used as an identifier",
+      "path": null,
       "start": 31,
       "end": 36,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

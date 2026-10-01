@@ -80,18 +80,20 @@
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '{'",
+      "path": null,
       "start": 85,
       "end": 86,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '{'",
+      "path": null,
       "start": 138,
       "end": 139,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     }
   ]
 }

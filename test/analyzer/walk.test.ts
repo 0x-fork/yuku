@@ -66,19 +66,19 @@ describe("walk", () => {
     expect(seen).toEqual(["module"]);
   });
 
-  test("ctx.symbol and ctx.reference are the node→model shorthands", () => {
+  test("ctx.binding and ctx.reference are the node→model shorthands", () => {
     const module = analyze(`let x = 1; x;`);
-    const declSymbols: string[] = [];
-    const useReferenceSymbols: (string | null)[] = [];
+    const declBindings: string[] = [];
+    const useReferenceBindings: (string | null)[] = [];
 
     module.walk({
       Identifier(_, ctx) {
-        if (ctx.symbol) declSymbols.push(ctx.symbol.name);
-        if (ctx.reference) useReferenceSymbols.push(ctx.reference.symbol?.name ?? null);
+        if (ctx.binding) declBindings.push(ctx.binding.name);
+        if (ctx.reference) useReferenceBindings.push(ctx.reference.binding?.name ?? null);
       },
     });
-    expect(declSymbols).toContain("x");
-    expect(useReferenceSymbols).toContain("x");
+    expect(declBindings).toContain("x");
+    expect(useReferenceBindings).toContain("x");
   });
 
   test("a subtree root limits the walk", () => {
@@ -197,27 +197,27 @@ describe("node queries", () => {
     ).toEqual(["a", "b", "C"]);
   });
 
-  test("symbolOf, referenceOf, and scopeOf work on node identity", () => {
+  test("bindingOf, referenceOf, and scopeOf work on node identity", () => {
     const module = analyze(`function f() { return inner; } let inner = 1;`);
     const [fn] = module.findAll("FunctionDeclaration");
-    const fnSymbol = module.symbolOf(fn!.id!);
-    expect(fnSymbol?.name).toBe("f");
+    const fnBinding = module.bindingOf(fn!.id!);
+    expect(fnBinding?.name).toBe("f");
 
     const use = fn!.body?.body[0];
     if (use?.type !== "ReturnStatement" || use.argument?.type !== "Identifier") {
       throw new Error("expected a returned identifier");
     }
     const reference = module.referenceOf(use.argument);
-    expect(reference?.symbol?.name).toBe("inner");
+    expect(reference?.binding?.name).toBe("inner");
     expect(module.scopeOf(use.argument)).toBe(reference!.scope);
   });
 
   test("resolve walks the scope chain from a starting scope", () => {
     const module = analyze(`let outer = 1; function f() { let local = 2; }`);
     const bodyScope = module.scopes.find((s) => s.kind === "functionBody")!;
-    expect(module.resolve("local", bodyScope)?.name).toBe("local");
-    expect(module.resolve("outer", bodyScope)?.name).toBe("outer");
-    expect(module.resolve("missing", bodyScope)).toBeNull();
+    expect(module.lookup("local", { from: bodyScope })?.name).toBe("local");
+    expect(module.lookup("outer", { from: bodyScope })?.name).toBe("outer");
+    expect(module.lookup("missing", { from: bodyScope })).toBeNull();
   });
 
   test("parentOf climbs from a node to the structure around it", () => {
@@ -228,7 +228,7 @@ describe("node queries", () => {
     // a destructured binding climbs to the Property that names the prop
     const handler = module
       .findAll("Identifier")
-      .find((n) => n.name === "handler" && module.symbolOf(n))!;
+      .find((n) => n.name === "handler" && module.bindingOf(n))!;
     const property = module.parentOf(handler)!;
     expect(
       property.type === "Property" && property.key.type === "Identifier"
@@ -249,6 +249,16 @@ describe("node queries", () => {
     expect(module.parentOf(b.Identifier({ name: "x" }))).toBeNull();
   });
 
+  test("nodeAt finds the innermost node at an offset", () => {
+    const source = `const total = price + tax;`;
+    const module = analyze(source);
+    const price = module.nodeAt(source.indexOf("price"))!;
+    expect(price.type === "Identifier" ? price.name : null).toBe("price");
+    expect(module.nodeAt(source.indexOf("+"))?.type).toBe("BinaryExpression");
+    expect(module.nodeAt(source.length)).toBeNull();
+    expect(module.bindingOf(module.nodeAt(source.indexOf("total"))!)?.name).toBe("total");
+  });
+
   test("parentOf reaches the last child of a list longer than a u16", () => {
     const module = analyze(`[${"0,".repeat(65_536)}];`);
     const first = module.ast.body[0];
@@ -259,14 +269,14 @@ describe("node queries", () => {
     expect(module.parentOf(array.elements.at(-1)!)).toBe(array);
   });
 
-  test("a parameter declaration resolves back through symbolOf", () => {
+  test("a parameter declaration resolves back through bindingOf", () => {
     // covers params nested in a decorator expression, where the node index is
     // easy to lose
     const module = analyze(`class C { #f; m(@dec((x) => x.#f) p, plain) {} }`, "input.ts");
     void module.ast;
     for (const name of ["x", "p", "plain"]) {
-      const symbol = module.symbols.find((s) => s.name === name)!;
-      expect(module.symbolOf(symbol.declarations[0]!)).toBe(symbol);
+      const binding = module.bindings.find((s) => s.name === name)!;
+      expect(module.bindingOf(binding.declarations[0]!)).toBe(binding);
     }
   });
 });

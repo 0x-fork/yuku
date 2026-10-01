@@ -262,10 +262,11 @@ class Printer extends Output {
     this.diagnostics.push({
       severity: "error",
       message,
-      help: null,
+      path: null,
       start: node.start,
       end: node.end,
       labels: [],
+      help: null,
     });
   }
 

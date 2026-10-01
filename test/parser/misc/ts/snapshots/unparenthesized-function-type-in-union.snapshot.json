@@ -1306,642 +1306,722 @@
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 14,
       "end": 15,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 14,
       "end": 15,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 53,
       "end": 54,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 53,
       "end": 54,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 87,
       "end": 88,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 87,
       "end": 88,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 120,
       "end": 121,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 120,
       "end": 121,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 166,
       "end": 167,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 166,
       "end": 167,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 207,
       "end": 208,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 207,
       "end": 208,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 241,
       "end": 242,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 241,
       "end": 242,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 309,
       "end": 310,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found 'new'",
+      "path": null,
       "start": 363,
       "end": 366,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 414,
       "end": 415,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 480,
       "end": 481,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 520,
       "end": 521,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 572,
       "end": 573,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected ';', ',', or newline between type members, but found '('",
+      "path": null,
       "start": 631,
       "end": 632,
-      "help": "Separate type members with ';', ',', or a newline, or close the block with '}'",
-      "labels": []
+      "labels": [],
+      "help": "Separate type members with ';', ',', or a newline, or close the block with '}'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '('",
+      "path": null,
       "start": 631,
       "end": 632,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ']' to close a tuple type, but found '('",
+      "path": null,
       "start": 682,
       "end": 683,
-      "help": "Each '[' in a tuple type must be matched by a ']'",
-      "labels": []
+      "labels": [],
+      "help": "Each '[' in a tuple type must be matched by a ']'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '('",
+      "path": null,
       "start": 682,
       "end": 683,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected '?' in a conditional type, but found '('",
+      "path": null,
       "start": 755,
       "end": 756,
-      "help": "A conditional type is written 'T extends U ? X : Y'",
-      "labels": []
+      "labels": [],
+      "help": "A conditional type is written 'T extends U ? X : Y'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '('",
+      "path": null,
       "start": 755,
       "end": 756,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 808,
       "end": 809,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 876,
       "end": 877,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 960,
       "end": 961,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 1016,
       "end": 1017,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '('",
+      "path": null,
       "start": 1088,
       "end": 1089,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 1162,
       "end": 1163,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '<'",
+      "path": null,
       "start": 1162,
       "end": 1163,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 1239,
       "end": 1240,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '<'",
+      "path": null,
       "start": 1239,
       "end": 1240,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1437,
       "end": 1438,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1437,
       "end": 1438,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '...'",
+      "path": null,
       "start": 1498,
       "end": 1501,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found '...'",
+      "path": null,
       "start": 1498,
       "end": 1501,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1564,
       "end": 1565,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1564,
       "end": 1565,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1617,
       "end": 1618,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1617,
       "end": 1618,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '=>'",
+      "path": null,
       "start": 1671,
       "end": 1673,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ','",
+      "path": null,
       "start": 1709,
       "end": 1710,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ','",
+      "path": null,
       "start": 1709,
       "end": 1710,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1769,
       "end": 1770,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1769,
       "end": 1770,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1842,
       "end": 1843,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1842,
       "end": 1843,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 1894,
       "end": 1895,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 1894,
       "end": 1895,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 1945,
       "end": 1946,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 1945,
       "end": 1946,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected ')' to close a parenthesized type, but found ':'",
+      "path": null,
       "start": 2013,
       "end": 2014,
-      "help": "Each '(' in a type must be matched by a ')'",
-      "labels": []
+      "labels": [],
+      "help": "Each '(' in a type must be matched by a ')'"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ':'",
+      "path": null,
       "start": 2013,
       "end": 2014,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2095,
       "end": 2096,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2095,
       "end": 2096,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2095,
       "end": 2096,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2135,
       "end": 2136,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2135,
       "end": 2136,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2135,
       "end": 2136,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2196,
       "end": 2197,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2196,
       "end": 2197,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found ')'",
+      "path": null,
       "start": 2196,
       "end": 2197,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2242,
       "end": 2243,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2242,
       "end": 2243,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2242,
       "end": 2243,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2298,
       "end": 2299,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2298,
       "end": 2299,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2298,
       "end": 2299,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2357,
       "end": 2358,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2357,
       "end": 2358,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2357,
       "end": 2358,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2415,
       "end": 2416,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2415,
       "end": 2416,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a semicolon or an implicit semicolon after a statement, but found '=>'",
+      "path": null,
       "start": 2417,
       "end": 2419,
-      "help": "Try inserting a semicolon here",
-      "labels": []
+      "labels": [],
+      "help": "Try inserting a semicolon here"
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2475,
       "end": 2476,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2475,
       "end": 2476,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Expected a type, but found ')'",
+      "path": null,
       "start": 2475,
       "end": 2476,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

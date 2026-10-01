@@ -187,18 +187,20 @@
     {
       "severity": "error",
       "message": "An import alias cannot use 'import type'",
+      "path": null,
       "start": 71,
       "end": 111,
-      "help": "Drop 'type', or import the type with 'import type x from \"m\"'.",
-      "labels": []
+      "labels": [],
+      "help": "Drop 'type', or import the type with 'import type x from \"m\"'."
     },
     {
       "severity": "error",
       "message": "An import alias cannot use 'import type'",
+      "path": null,
       "start": 113,
       "end": 142,
-      "help": "Drop 'type', or import the type with 'import type x from \"m\"'.",
-      "labels": []
+      "labels": [],
+      "help": "Drop 'type', or import the type with 'import type x from \"m\"'."
     }
   ]
 }

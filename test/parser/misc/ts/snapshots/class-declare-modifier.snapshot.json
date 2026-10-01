@@ -483,58 +483,65 @@
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 150,
       "end": 156,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 172,
       "end": 180,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 204,
       "end": 210,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 230,
       "end": 236,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 261,
       "end": 275,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 301,
       "end": 315,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     },
     {
       "severity": "error",
       "message": "A 'declare' modifier cannot appear on a class element of this kind",
+      "path": null,
       "start": 342,
       "end": 353,
-      "help": "Remove 'declare'. Only class fields carry it.",
-      "labels": []
+      "labels": [],
+      "help": "Remove 'declare'. Only class fields carry it."
     }
   ]
 }

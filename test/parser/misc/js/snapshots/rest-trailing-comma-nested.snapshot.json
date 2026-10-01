@@ -337,34 +337,38 @@
     {
       "severity": "error",
       "message": "Rest element cannot have a trailing comma in array destructuring.",
+      "path": null,
       "start": 45,
       "end": 52,
-      "help": "Remove the trailing comma after the rest element",
-      "labels": []
+      "labels": [],
+      "help": "Remove the trailing comma after the rest element"
     },
     {
       "severity": "error",
       "message": "Rest element cannot have a trailing comma in object destructuring.",
+      "path": null,
       "start": 59,
       "end": 66,
-      "help": "Remove the trailing comma after the rest element",
-      "labels": []
+      "labels": [],
+      "help": "Remove the trailing comma after the rest element"
     },
     {
       "severity": "error",
       "message": "Rest element cannot have a trailing comma in array destructuring.",
+      "path": null,
       "start": 74,
       "end": 81,
-      "help": "Remove the trailing comma after the rest element",
-      "labels": []
+      "labels": [],
+      "help": "Remove the trailing comma after the rest element"
     },
     {
       "severity": "error",
       "message": "Rest element cannot have a trailing comma in object destructuring.",
+      "path": null,
       "start": 97,
       "end": 104,
-      "help": "Remove the trailing comma after the rest element",
-      "labels": []
+      "labels": [],
+      "help": "Remove the trailing comma after the rest element"
     }
   ]
 }

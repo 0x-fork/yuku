@@ -1022,26 +1022,29 @@
     {
       "severity": "error",
       "message": "Bad escape sequence in untagged template literal",
+      "path": null,
       "start": 781,
       "end": 783,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Bad escape sequence in untagged template literal",
+      "path": null,
       "start": 810,
       "end": 812,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     },
     {
       "severity": "error",
       "message": "Bad escape sequence in untagged template literal",
+      "path": null,
       "start": 845,
       "end": 849,
-      "help": null,
-      "labels": []
+      "labels": [],
+      "help": null
     }
   ]
 }

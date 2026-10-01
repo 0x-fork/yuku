@@ -64,16 +64,17 @@ function compare(
     const position = reference.node.start;
     const theirDefs = tsc.get(position);
     if (theirDefs === undefined) continue;
-    const symbol = reference.symbol;
+    const binding = reference.binding;
     const ourDef =
-      symbol === null ? UNRESOLVED : Math.min(...symbol.declarations.map((d) => d.start));
+      binding === null ? UNRESOLVED : Math.min(...binding.declarations.map((d) => d.start));
     // tsc merges declarations, agreement is membership in its set
     const agree =
       ourDef === UNRESOLVED ? theirDefs.length === 0 : theirDefs.includes(ourDef);
     if (!agree) {
       // getSymbolAtLocation returns symbols the checker rejects with
       // wrong-space errors, unresolved with a name in some space is that
-      if (ourDef === UNRESOLVED && module.resolve(reference.name, reference.scope, "any") !== null) {
+      const named = module.lookup(reference.name, { from: reference.scope, space: "any" });
+      if (ourDef === UNRESOLVED && named !== null) {
         continue;
       }
       // merged enum declarations resolve members across blocks
