@@ -2,7 +2,15 @@
 
 Scopes, bindings, resolved references, closures, and cross-file linking for JavaScript and TypeScript, computed natively in the same pass as the parse, part of [Yuku](https://yuku.fyi).
 
-It does the work of `eslint-scope` or `@typescript-eslint/scope-manager` and a cross-file resolver, up to 15× faster per file.
+It does the work of `eslint-scope` or `@typescript-eslint/scope-manager` and a cross-file resolver. On real code it is 15–20× faster than `@typescript-eslint/scope-manager` and 4–6× faster than `eslint-scope`, using up to 5× less memory.
+
+It is as accurate as it is fast, tested on more than 50,000 files, including the TypeScript compiler, Vue, and three.js.
+
+- 1.2 million references, values and types, resolve to the same declarations as in the TypeScript checker.
+- Over 500,000 declarations land in the same scopes, and over a million references resolve and write the same, as in `@typescript-eslint/scope-manager`.
+- 65,000 imports, re-exports, and exported names across eight real codebases link as in a TypeScript program.
+
+[Read how it is tested →](https://yuku.fyi/testing/#semantic-analysis)
 
 - [Install](#install)
 - [Usage](#usage)
@@ -64,7 +72,7 @@ project.link();                         // links now, cross-file queries link on
 
 The options are `lang` and `sourceType`, inferred from the path, and `preserveParens`, `attachComments`, and `tokens`, as in [`yuku-parser`](https://www.npmjs.com/package/yuku-parser#options). `analyze(source, options)` is a project of one file, with `path` among its options.
 
-The default resolver matches relative specifiers to files in the project, probing extensions and index files. A package or an asset such as `./app.css` is external, and a relative specifier with no match is reported.
+The default resolver matches relative specifiers to files in the project, probing extensions and index files as TypeScript does, so `./a.js` finds `a.ts`. A package or an asset such as `./app.css` is external, and a relative specifier with no match is reported.
 
 A diagnostic has the shape of [`yuku-parser`'s](https://www.npmjs.com/package/yuku-parser#diagnostics), with the `path` of its module.
 
@@ -95,6 +103,7 @@ module.bindingOf(node);      // the binding a node declares or refers to
 module.referenceOf(node);
 module.scopeOf(node);
 module.parentOf(node);
+module.ancestors(node);      // the node, then each parent up to the root
 module.nodeAt(offset);       // the innermost node at a UTF-16 offset
 module.lookup("x", { from: scope, space: "value" }); // resolves a name as code there would
 module.capturesOf(fn);       // [{ binding, references, isWritten }], the outer bindings it uses
@@ -171,6 +180,8 @@ function f() {
 }
 ```
 
+The blocks of one namespace or enum see each other's exports and members, as one declaration.
+
 ## Imports and exports
 
 ```js
@@ -237,7 +248,7 @@ module.walk({
 | `Ambient`                | `declare`                                    |
 | `Parameter`              | a parameter                                  |
 | `CatchVariable`          | `catch (e)`                                  |
-| `Exported`               | `export <declaration>`                       |
+| `Exported`               | `export`, or implicitly in ambient code      |
 | `Default`                | `export default <declaration>`               |
 | `EnumMember`             | an enum member                               |
 | `Variable`               | any variable                                 |

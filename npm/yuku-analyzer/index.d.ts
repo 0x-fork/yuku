@@ -30,7 +30,8 @@ interface AnalyzerOptions {
   /**
    * Maps an import specifier to the path of a file in the project. Return `false` for a module
    * outside the project, such as a package, and `null` when it cannot be resolved, which is
-   * reported as a warning. Defaults to relative paths with extension and index probing.
+   * reported as a warning. Defaults to relative paths, probing extensions and index files as
+   * TypeScript does.
    */
   resolve?: (specifier: string, importer: string) => string | false | null;
 }
@@ -62,7 +63,7 @@ declare const BindingFlags: {
   readonly Ambient: number;
   readonly Parameter: number;
   readonly CatchVariable: number;
-  /** Declared by `export <declaration>`. */
+  /** Declared by `export`, or implicitly in ambient code with no export statement. */
   readonly Exported: number;
   /** Declared by `export default`. */
   readonly Default: number;
@@ -174,6 +175,8 @@ interface Module {
   /** The innermost scope around a node, the root scope for a node added later. */
   scopeOf(node: Node): Scope;
   parentOf(node: Node): Node | null;
+  /** The node, then each parent up to the root. */
+  ancestors(node: Node): IterableIterator<Node>;
   /** The innermost node containing a UTF-16 offset. */
   nodeAt(offset: number): Node | null;
   /** Resolves a name as code at `from` would. */

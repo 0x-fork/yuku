@@ -44,8 +44,6 @@ describe("walk", () => {
         seen[node.name] = ctx.scope.kind;
       },
     });
-    // `bound` resolves at use inside the arrow, `inner` is declared in the
-    // function scope, `outer` at module scope
     expect(seen).toMatchInlineSnapshot(`
       {
         "bound": "module",
@@ -249,6 +247,18 @@ describe("node queries", () => {
     expect(module.parentOf(b.Identifier({ name: "x" }))).toBeNull();
   });
 
+  test("ancestors yields a node, then each parent up to the root", () => {
+    const module = analyze(`let x = f(1);`);
+    const literal = module.findAll("Literal")[0]!;
+    expect([...module.ancestors(literal)].map((node) => node.type)).toEqual([
+      "Literal",
+      "CallExpression",
+      "VariableDeclarator",
+      "VariableDeclaration",
+      "Program",
+    ]);
+  });
+
   test("nodeAt finds the innermost node at an offset", () => {
     const source = `const total = price + tax;`;
     const module = analyze(source);
@@ -270,8 +280,7 @@ describe("node queries", () => {
   });
 
   test("a parameter declaration resolves back through bindingOf", () => {
-    // covers params nested in a decorator expression, where the node index is
-    // easy to lose
+    // params nested in a decorator expression
     const module = analyze(`class C { #f; m(@dec((x) => x.#f) p, plain) {} }`, "input.ts");
     void module.ast;
     for (const name of ["x", "p", "plain"]) {
