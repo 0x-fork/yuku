@@ -58,6 +58,25 @@ switch (tree.data(idx)) {
 
 Predicates classify a payload in one call: `isExpression`, `isStatement`, `isDeclaration`, `isLiteral`, `isPattern`, `isCallable`, `isIteration`, and `isTypeContext`. To walk the whole tree, use the [traverser](/parser/traverse/).
 
+`tree.source`, `tree.lang`, and `tree.source_type` hold what was parsed, and `isTs()`, `isJsx()`, and `isModule()` ask about them.
+
+## [Building and editing]($section.id('building-and-editing'))
+
+Every change goes through the tree and lands in its arena.
+
+```zig
+const name = try tree.addString("total");          // interned, deduplicated
+const id = try tree.addNode(.{ .identifier_reference = .{ .name = name } }, span);
+const list = try tree.addExtra(&.{id});            // a child list
+tree.setData(idx, data);                           // replace a payload
+tree.setSpan(idx, span);
+tree.setIdentifierName(idx, name);                 // any identifier kind
+const text = tree.sourceSlice(start, end);         // a String over the source, no copy
+try tree.addDiagnostic(.{ .message = "unused", .span = span });
+```
+
+`ast.Tree.initEmpty(allocator)` starts a tree with no source, for output built from nothing. The [transform](/parser/traverse/#transform) traverser makes these changes during a walk.
+
 ## [Comments]($section.id('comments'))
 
 The `comments` option collects every comment into `tree.comments`, attaches each to its node, or both. An attached comment records whether it sits `before`, `after`, or `inside` its node, so comments move with their nodes through transforms and [codegen](/parser/codegen/) prints them in place.
@@ -78,4 +97,12 @@ for (tree.tokens) |token| {
 }
 ```
 
-A tag answers what a tool needs, such as `isKeyword()`, `isReserved()`, and `precedence()`, and a token knows whether a line break precedes it, which is what ASI reads. Every node other than `program`, `template_element`, and `jsx_empty_expression` starts and ends on a token boundary, so its tokens are a contiguous run.
+```zig
+token.tag.isKeyword()             // also isReserved, isIdentifierLike, isNumericLiteral,
+                                  // and the operator kinds
+token.tag.precedence()            // binary precedence, 0 when none
+token.hasLineTerminatorBefore()   // what ASI reads
+token.isEscaped()                 // also hasInvalidEscape and hasLoneSurrogates
+```
+
+The list ends with an `eof` token. Every node other than `program`, `template_element`, and `jsx_empty_expression` starts and ends on a token boundary, so its tokens are a contiguous run.

@@ -71,7 +71,7 @@ defer result.deinit(allocator);
 | Package                                                        | For                                                 |
 | -------------------------------------------------------------- | --------------------------------------------------- |
 | [`yuku-parser`](https://www.npmjs.com/package/yuku-parser)     | Parsing to an ESTree / TypeScript-ESTree AST        |
-| [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) | Scopes, symbols, references, and cross-file linking |
+| [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) | Scopes, bindings, references, and module linking    |
 | [`yuku-codegen`](https://www.npmjs.com/package/yuku-codegen)   | Printing an AST back to source, with source maps    |
 | [`yuku-ast`](https://www.npmjs.com/package/yuku-ast)           | Walking, building, and checking AST nodes           |
 

@@ -73,7 +73,7 @@ defer result.deinit(allocator);
 | Package                                                        | For                                                 |
 | -------------------------------------------------------------- | --------------------------------------------------- |
 | [`yuku-parser`](https://www.npmjs.com/package/yuku-parser)     | Parsing to an ESTree / TypeScript-ESTree AST        |
-| [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) | Scopes, symbols, references, and cross-file linking |
+| [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) | Scopes, bindings, references, and module linking    |
 | [`yuku-codegen`](https://www.npmjs.com/package/yuku-codegen)   | Printing an AST back to source, with source maps    |
 | [`yuku-ast`](https://www.npmjs.com/package/yuku-ast)           | Walking, building, and checking AST nodes           |
 
@@ -175,7 +175,7 @@ pub fn main() !void {
 }
 ```
 
-`parse` returns a `Tree` holding the AST, its diagnostics, and the source. Everything lives in one arena, so `tree.deinit()` frees it all at once. [AST](https://yuku.fyi/parser/ast/) shows how to read it.
+`parse` returns a `Tree` holding the AST, its diagnostics, and the source, and fails only with `error.OutOfMemory`. Everything lives in one arena, so `tree.deinit()` frees it all at once. The tree borrows `source`, which must outlive it. [AST](https://yuku.fyi/parser/ast/) shows how to read it.
 
 ## Options
 
@@ -198,7 +198,7 @@ var tree = try parser.parse(allocator, "const a = 1;\nlet x = ;\nconst y = 2;", 
 // one diagnostic, "Unexpected token ';'", and a tree holding `a` and `y`
 ```
 
-Every Yuku tool reports diagnostics in one shape: a `severity`, a `message`, a byte `span`, `labels` pointing at related code, and optional `help`.
+Every Yuku tool reports diagnostics in one shape, `ast.Diagnostic`: a `severity` of `.error`, `.warning`, `.hint`, or `.info`, a `message`, a byte `span`, `labels` pointing at related code, and optional `help`.
 
 ```zig
 for (tree.diagnostics.items) |d| {
@@ -209,7 +209,7 @@ for (tree.diagnostics.items) |d| {
 }
 ```
 
-`tree.hasErrors()` tells whether any error occurred. [Semantic analysis](https://yuku.fyi/parser/semantic/) adds the early errors that need scopes, such as duplicate `let` declarations and `break` outside a loop.
+`tree.hasErrors()` tells whether any error occurred, and `tree.hasDiagnostics()` whether anything was reported. [Semantic analysis](https://yuku.fyi/parser/semantic/) adds the early errors that need scopes, such as duplicate `let` declarations and `break` outside a loop.
 
 # AST
 
@@ -268,6 +268,25 @@ switch (tree.data(idx)) {
 
 Predicates classify a payload in one call: `isExpression`, `isStatement`, `isDeclaration`, `isLiteral`, `isPattern`, `isCallable`, `isIteration`, and `isTypeContext`. To walk the whole tree, use the [traverser](https://yuku.fyi/parser/traverse/).
 
+`tree.source`, `tree.lang`, and `tree.source_type` hold what was parsed, and `isTs()`, `isJsx()`, and `isModule()` ask about them.
+
+## Building and editing
+
+Every change goes through the tree and lands in its arena.
+
+```zig
+const name = try tree.addString("total");          // interned, deduplicated
+const id = try tree.addNode(.{ .identifier_reference = .{ .name = name } }, span);
+const list = try tree.addExtra(&.{id});            // a child list
+tree.setData(idx, data);                           // replace a payload
+tree.setSpan(idx, span);
+tree.setIdentifierName(idx, name);                 // any identifier kind
+const text = tree.sourceSlice(start, end);         // a String over the source, no copy
+try tree.addDiagnostic(.{ .message = "unused", .span = span });
+```
+
+`ast.Tree.initEmpty(allocator)` starts a tree with no source, for output built from nothing. The [transform](https://yuku.fyi/parser/traverse/#transform) traverser makes these changes during a walk.
+
 ## Comments
 
 The `comments` option collects every comment into `tree.comments`, attaches each to its node, or both. An attached comment records whether it sits `before`, `after`, or `inside` its node, so comments move with their nodes through transforms and [codegen](https://yuku.fyi/parser/codegen/) prints them in place.
@@ -288,7 +307,15 @@ for (tree.tokens) |token| {
 }
 ```
 
-A tag answers what a tool needs, such as `isKeyword()`, `isReserved()`, and `precedence()`, and a token knows whether a line break precedes it, which is what ASI reads. Every node other than `program`, `template_element`, and `jsx_empty_expression` starts and ends on a token boundary, so its tokens are a contiguous run.
+```zig
+token.tag.isKeyword()             // also isReserved, isIdentifierLike, isNumericLiteral,
+                                  // and the operator kinds
+token.tag.precedence()            // binary precedence, 0 when none
+token.hasLineTerminatorBefore()   // what ASI reads
+token.isEscaped()                 // also hasInvalidEscape and hasLoneSurrogates
+```
+
+The list ends with an `eof` token. Every node other than `program`, `template_element`, and `jsx_empty_expression` starts and ends on a token boundary, so its tokens are a contiguous run.
 
 # Semantic Analysis
 
@@ -321,21 +348,24 @@ const semantic = try parser.semantic.analyze(&tree);
 Every node leads into the model, and every symbol leads back to its nodes.
 
 ```zig
-semantic.symbolOf(node)             // the symbol a node declares or refers to
-semantic.referenceOf(node)          // the reference at an identifier
+semantic.symbolOf(node)             // the symbol a node declares or refers to, or null
+semantic.referenceOf(node)          // the reference at an identifier, or null
 semantic.scopeOf(node)              // the innermost scope around a node
-semantic.parentOf(node)             // its parent, and ancestors(node) up to the root
+semantic.parentOf(node)             // its parent, or null at the root
+semantic.ancestors(node)            // the node, then each parent up to the root
 
+semantic.symbol(id)                 // and scope(id), reference(id)
 semantic.decls(symbol)              // each declaration's name node
 semantic.uses(symbol)               // each reference to it
 
-semantic.binding(scope, "x")        // a name declared in one scope
+semantic.bindings(scope)            // the symbols a scope declares
+semantic.binding(scope, "x")        // one of them by name
 semantic.lookup(scope, "x", .value) // name resolution from any scope
 
 semantic.iterSymbols()              // and iterScopes, iterReferences
 ```
 
-Ids are dense and ordered, symbols by first declaration and references by source position, so "first declaration" and "earliest use" are index comparisons. Renaming a binding everywhere is two loops.
+`Symbol`, `Scope`, and `Reference` are in `parser.traverser.semantic`. A declaration's name node is an identifier, or a string literal for a quoted enum member. Ids are dense and ordered, symbols by first declaration and references by source position, so "first declaration" and "earliest use" are index comparisons. Renaming a binding everywhere is two loops.
 
 ```zig
 const name = try tree.addString("renamed");
@@ -363,9 +393,9 @@ The scope tree follows the specification exactly. A catch clause shares its scop
 
 ## Symbols
 
-A symbol's flags record its declaration kinds, such as `var`, `let`, `function`, `class`, `interface`, `enum`, and `import`, and its modifiers, such as `const`, `exported`, and `ambient`. Masks such as `Symbol.value_space` and `Symbol.any_import` answer a category in one `intersects`.
+A symbol's `flags` record its declaration kinds, such as `function_scoped_var`, `block_scoped_var`, `function`, `class`, `interface`, `regular_enum`, and `import`, and its modifiers, such as `const_var`, `exported`, and `ambient`. Masks answer a category in one call, as `flags.intersects(Symbol.value_space)` does, with `variable`, `any_import`, `value_space`, `type_space`, and `namespace_space`. `flags.visibleIn(space)` tells whether a reference in a space can bind to it.
 
-One rule decides both merging and redeclaration. Each declaration kind carries an exclusion mask, and a new declaration conflicts with an existing symbol whose flags intersect it, and merges into that symbol otherwise. Function overloads, a `class` and an `interface`, and a `namespace` and an `enum` all merge this way.
+One rule decides both merging and redeclaration. Each declaration kind carries an exclusion mask in `Symbol.Excludes`, and a new declaration conflicts with an existing symbol whose flags intersect it, and merges into that symbol otherwise. Function overloads, a `class` and an `interface`, and a `namespace` and an `enum` all merge this way.
 
 ## Declaration spaces
 
@@ -391,7 +421,7 @@ const records = try parser.semantic.module_record.collect(&tree, &semantic);
 // records.imports, records.exports, records.flags
 ```
 
-Imports are `named`, `namespace`, `side_effect`, `import_equals`, `dynamic`, or `require`, and dynamic `import()` and `require()` calls count when their specifier is a literal. Exports are `named`, `re_export`, `namespace`, `star`, `equals`, or `global`. CommonJS exports have no static shape, so `records.flags` records whether the file uses `require`, `module`, `exports`, or `import.meta`.
+An import has a `kind`, `name`, `symbol`, `specifier`, `type_only`, `phase`, and `node`. Its kind is `named`, `namespace`, `side_effect`, `import_equals`, `dynamic`, or `require`, and dynamic `import()` and `require()` calls count when their specifier is a string literal. An export has a `kind`, `name`, `symbol`, `from_name`, `specifier`, `type_only`, and `node`, and its kind is `named`, `re_export`, `namespace`, `star`, `equals`, or `global`. CommonJS exports have no static shape, so `records.flags` records whether the file uses `require`, `module`, `exports`, or `import.meta`.
 
 # Traverse
 
@@ -406,7 +436,7 @@ The traverser walks a tree and calls your visitor's hooks at every node. Pick th
 | [`semantic`](#semantic)   | scopes, symbols, and references | the [`Semantic`](https://yuku.fyi/parser/semantic/) model | analysis that needs to know what names mean |
 | [`transform`](#transform) | the path, with a mutable tree   | nothing                                   | rewrites, codemods, and desugaring          |
 
-The read-only modes see a `*const Tree`, so an analysis cannot mutate what it reads. Only `transform` gets a `*Tree`.
+In `basic`, `scoped`, and `semantic`, `ctx.tree` is a `*const Tree`, so a visitor cannot mutate what it reads. Only `transform` hands it a mutable tree.
 
 In JavaScript, [`yuku-ast`](https://www.npmjs.com/package/yuku-ast) walks any ESTree AST, and [`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) adds the semantic model to the walk.
 
@@ -440,13 +470,13 @@ try basic.traverse(Counter, &tree, &counter);
 std.debug.print("{d} functions\n", .{counter.functions});
 ```
 
-A misspelled hook or a wrong payload type is a compile error. `enter_node` and `exit_node` fire for every node. The walk is depth-first with siblings in source order, and an enter hook returns `.proceed` to walk into the children, `.skip` to pass over them, or `.stop` to end the walk.
+A misspelled hook or a wrong payload type is a compile error. `enter_node` and `exit_node` fire for every node, with the `ast.NodeData` payload. The walk is depth-first with siblings in source order. An enter hook returns a `traverser.Action`, `.proceed` to walk into the children, `.skip` to pass over them, or `.stop` to end the walk, and may return it in an error union to `try` an allocation. An exit hook returns nothing.
 
-Every mode's context has `ctx.tree` and `ctx.path`, which knows the current node's `parent()`, its `ancestors()`, and its `depth()`.
+Every mode's context has `ctx.tree` and `ctx.path`. The path knows the current node's `parent()`, its `ancestor(n)` with the current node at 0, its `ancestors()` from the current node up, and its `depth()`.
 
 ## Scoped
 
-`ctx.scope` follows the walk into and out of every scope, with its kind, `hoistTarget()`, and `isStrict()`. This lint finds each `var` that escapes the block it is written in.
+`ctx.scope` follows the walk into and out of every scope, with `currentScope()`, `hoistTarget()`, and `isStrict()`. This lint finds each `var` that escapes the block it is written in.
 
 ```zig
 const scoped = traverser.scoped;
@@ -473,30 +503,39 @@ On `{ var b; } for (var i = 0;;) {}` it finds `b` and `i`. The walk also returns
 
 ## Semantic
 
-The walk binds symbols and references as it goes, with `ctx.symbols` knowing every name declared so far and `ctx.inTypePosition()` telling when it is inside a TypeScript type. This visitor counts the names a file uses as types.
+The walk builds the [`Semantic`](https://yuku.fyi/parser/semantic/) model as it goes and returns it. During the walk, `ctx.inTypePosition()` and `ctx.inTsNamespace()` tell where it is, `ctx.parentOf(node)` climbs from any node already entered, and `ctx.symbols.binding(scope, name)` finds a name declared so far. References resolve when the walk ends, so a visitor collects nodes and asks the model after. This one finds the types a file imports.
 
 ```zig
 const sem = traverser.semantic;
 
 const TypeNames = struct {
-    count: u32 = 0,
+    allocator: std.mem.Allocator,
+    nodes: std.ArrayList(ast.NodeIndex) = .empty,
 
     pub fn enter_identifier_reference(
         self: *TypeNames,
         _: ast.IdentifierReference,
-        _: ast.NodeIndex,
+        index: ast.NodeIndex,
         ctx: *sem.Ctx,
-    ) traverser.Action {
-        if (ctx.inTypePosition()) self.count += 1;
+    ) std.mem.Allocator.Error!traverser.Action {
+        if (ctx.inTypePosition()) try self.nodes.append(self.allocator, index);
         return .proceed;
     }
 };
 
-var names = TypeNames{};
+var names = TypeNames{ .allocator = tree.allocator() };
 const semantic = try sem.traverse(TypeNames, &tree, &names);
+
+for (names.nodes.items) |node| {
+    const id = semantic.symbolOf(node) orelse continue; // a global type
+    const symbol = semantic.symbol(id);
+    if (symbol.flags.intersects(sem.Symbol.any_import)) {
+        std.debug.print("imported type {s}\n", .{tree.string(symbol.name)});
+    }
+}
 ```
 
-The walk returns the complete [`Semantic`](https://yuku.fyi/parser/semantic/) model, every reference resolved, the same one `semantic.analyze` builds. `analyze` is this mode with a visitor that reports the early errors.
+On `import type { User } from "./user"; type Id = string; let user: User, id: Id;` it prints `User`. `semantic.analyze` is this mode with a visitor that reports the early errors.
 
 ## Transform
 
@@ -527,13 +566,20 @@ var rewrite = AddToMultiply{};
 try transform.traverse(AddToMultiply, &tree, &rewrite);
 ```
 
-`addNode`, `addString`, and `setIdentifierName` build and rename nodes during the walk, in the tree's arena. After wrapping a node in a new parent, return `.skip`, so the walker does not enter the moved node again. [Codegen](https://yuku.fyi/parser/codegen/) prints the result.
+The tree's [building and editing](https://yuku.fyi/parser/ast/#building-and-editing) calls, such as `addNode`, `addString`, and `setIdentifierName`, work during the walk. After wrapping a node in a new parent, return `.skip`, so the walker does not enter the moved node again. [Codegen](https://yuku.fyi/parser/codegen/) prints the result.
 
 `ast.Tree.initEmpty` starts a tree from nothing, so a transpiler can walk an input tree with full semantics while building a separate output tree. Modes compose as passes, such as a transform followed by a semantic walk over its result.
 
 ## Your own mode
 
-The four modes are four context types over one walker, each [about thirty lines](https://github.com/yuku-toolchain/yuku/blob/main/src/parser/traverser/basic.zig), and `traverser.walk` drives a context of your own the same way.
+The four modes are four context types over one walker. A context of your own has a `tree` field and `enter(index, data)` and `exit(index, data)` methods, and `traverser.Layer` runs them around your visitor's hooks.
+
+```zig
+var layer = traverser.Layer(MyCtx, V){ .inner = &visitor };
+try traverser.walk(MyCtx, traverser.Layer(MyCtx, V), &layer, &ctx);
+```
+
+[basic.zig](https://github.com/yuku-toolchain/yuku/blob/main/src/parser/traverser/basic.zig) is the smallest mode, a context that tracks the path.
 
 # Codegen
 
@@ -568,7 +614,7 @@ defer result.deinit(allocator);
 std.debug.print("{s}\n", .{result.code}); // const x = 1;
 ```
 
-`generate` leaves the tree unchanged and returns the `code`, any `diagnostics`, and the source `map`.
+`generate` leaves the tree unchanged and returns the `code`, its `diagnostics` as `ast.Diagnostic`, and the source `map`, owned by the allocator it was given and freed with `result.deinit`. It fails only with `error.OutOfMemory`.
 
 ## Options
 
@@ -582,7 +628,7 @@ std.debug.print("{s}\n", .{result.code}); // const x = 1;
 | `comments`   | `.some`     | Which [attached comments](https://yuku.fyi/parser/ast/#comments) to print, `.some` for legal headers, JSDoc, and annotations, or `.all`, `.none`, `.line`, `.block` |
 | `source_map` | `null`      | Emit a Source Map V3, see [Source maps](#source-maps)                                                                                               |
 
-Every option is independent, so they compose freely.
+Every option is independent, so they compose freely. Comments print from the nodes they are attached to, so parse with `.comments = .attached` or `.both` to keep them.
 
 ## Type stripping
 
@@ -611,14 +657,26 @@ const result = try parser.codegen.generate(allocator, &tree, .{
 
 ```zig
 const result = try parser.codegen.generate(allocator, &tree, .{
-    .source_map = .{ .source = source, .file = "out.js", .source_file_name = "in.js" },
+    .source_map = .{
+        .source = source,           // required for a map
+        .file = "out.js",
+        .source_file_name = "in.js",
+        .source_root = null,
+        .sources_content = source,
+    },
 });
 defer result.deinit(allocator);
 
-const map = result.map.?; // the Source Map V3 fields, with `mappings` encoded
+const map = result.map.?; // version, file, source_root, sources, sources_content, names, mappings
 ```
 
 Mappings come from the same walk that prints the code, with columns in UTF-16 code units, the convention of browser devtools and source map libraries.
+
+A build that never needs maps can compile them out, for a smaller binary. `map` is then always `null`.
+
+```zig
+const yuku = b.dependency("yuku", .{ .@"codegen-source-maps" = false });
+```
 
 # Testing
 

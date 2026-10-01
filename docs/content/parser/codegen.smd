@@ -34,7 +34,7 @@ defer result.deinit(allocator);
 std.debug.print("{s}\n", .{result.code}); // const x = 1;
 ```
 
-`generate` leaves the tree unchanged and returns the `code`, any `diagnostics`, and the source `map`.
+`generate` leaves the tree unchanged and returns the `code`, its `diagnostics` as `ast.Diagnostic`, and the source `map`, owned by the allocator it was given and freed with `result.deinit`. It fails only with `error.OutOfMemory`.
 
 ## [Options]($section.id('options'))
 
@@ -48,7 +48,7 @@ std.debug.print("{s}\n", .{result.code}); // const x = 1;
 | `comments`   | `.some`     | Which [attached comments](/parser/ast/#comments) to print, `.some` for legal headers, JSDoc, and annotations, or `.all`, `.none`, `.line`, `.block` |
 | `source_map` | `null`      | Emit a Source Map V3, see [Source maps](#source-maps)                                                                                               |
 
-Every option is independent, so they compose freely.
+Every option is independent, so they compose freely. Comments print from the nodes they are attached to, so parse with `.comments = .attached` or `.both` to keep them.
 
 ## [Type stripping]($section.id('type-stripping'))
 
@@ -77,11 +77,23 @@ const result = try parser.codegen.generate(allocator, &tree, .{
 
 ```zig
 const result = try parser.codegen.generate(allocator, &tree, .{
-    .source_map = .{ .source = source, .file = "out.js", .source_file_name = "in.js" },
+    .source_map = .{
+        .source = source,           // required for a map
+        .file = "out.js",
+        .source_file_name = "in.js",
+        .source_root = null,
+        .sources_content = source,
+    },
 });
 defer result.deinit(allocator);
 
-const map = result.map.?; // the Source Map V3 fields, with `mappings` encoded
+const map = result.map.?; // version, file, source_root, sources, sources_content, names, mappings
 ```
 
 Mappings come from the same walk that prints the code, with columns in UTF-16 code units, the convention of browser devtools and source map libraries.
+
+A build that never needs maps can compile them out, for a smaller binary. `map` is then always `null`.
+
+```zig
+const yuku = b.dependency("yuku", .{ .@"codegen-source-maps" = false });
+```

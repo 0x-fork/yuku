@@ -37,7 +37,7 @@ pub fn main() !void {
 }
 ```
 
-`parse` returns a `Tree` holding the AST, its diagnostics, and the source. Everything lives in one arena, so `tree.deinit()` frees it all at once. [AST](/parser/ast/) shows how to read it.
+`parse` returns a `Tree` holding the AST, its diagnostics, and the source, and fails only with `error.OutOfMemory`. Everything lives in one arena, so `tree.deinit()` frees it all at once. The tree borrows `source`, which must outlive it. [AST](/parser/ast/) shows how to read it.
 
 ## [Options]($section.id('options'))
 
@@ -60,7 +60,7 @@ var tree = try parser.parse(allocator, "const a = 1;\nlet x = ;\nconst y = 2;", 
 // one diagnostic, "Unexpected token ';'", and a tree holding `a` and `y`
 ```
 
-Every Yuku tool reports diagnostics in one shape: a `severity`, a `message`, a byte `span`, `labels` pointing at related code, and optional `help`.
+Every Yuku tool reports diagnostics in one shape, `ast.Diagnostic`: a `severity` of `.error`, `.warning`, `.hint`, or `.info`, a `message`, a byte `span`, `labels` pointing at related code, and optional `help`.
 
 ```zig
 for (tree.diagnostics.items) |d| {
@@ -71,4 +71,4 @@ for (tree.diagnostics.items) |d| {
 }
 ```
 
-`tree.hasErrors()` tells whether any error occurred. [Semantic analysis](/parser/semantic/) adds the early errors that need scopes, such as duplicate `let` declarations and `break` outside a loop.
+`tree.hasErrors()` tells whether any error occurred, and `tree.hasDiagnostics()` whether anything was reported. [Semantic analysis](/parser/semantic/) adds the early errors that need scopes, such as duplicate `let` declarations and `break` outside a loop.

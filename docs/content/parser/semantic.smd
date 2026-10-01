@@ -32,21 +32,24 @@ const semantic = try parser.semantic.analyze(&tree);
 Every node leads into the model, and every symbol leads back to its nodes.
 
 ```zig
-semantic.symbolOf(node)             // the symbol a node declares or refers to
-semantic.referenceOf(node)          // the reference at an identifier
+semantic.symbolOf(node)             // the symbol a node declares or refers to, or null
+semantic.referenceOf(node)          // the reference at an identifier, or null
 semantic.scopeOf(node)              // the innermost scope around a node
-semantic.parentOf(node)             // its parent, and ancestors(node) up to the root
+semantic.parentOf(node)             // its parent, or null at the root
+semantic.ancestors(node)            // the node, then each parent up to the root
 
+semantic.symbol(id)                 // and scope(id), reference(id)
 semantic.decls(symbol)              // each declaration's name node
 semantic.uses(symbol)               // each reference to it
 
-semantic.binding(scope, "x")        // a name declared in one scope
+semantic.bindings(scope)            // the symbols a scope declares
+semantic.binding(scope, "x")        // one of them by name
 semantic.lookup(scope, "x", .value) // name resolution from any scope
 
 semantic.iterSymbols()              // and iterScopes, iterReferences
 ```
 
-Ids are dense and ordered, symbols by first declaration and references by source position, so "first declaration" and "earliest use" are index comparisons. Renaming a binding everywhere is two loops.
+`Symbol`, `Scope`, and `Reference` are in `parser.traverser.semantic`. A declaration's name node is an identifier, or a string literal for a quoted enum member. Ids are dense and ordered, symbols by first declaration and references by source position, so "first declaration" and "earliest use" are index comparisons. Renaming a binding everywhere is two loops.
 
 ```zig
 const name = try tree.addString("renamed");
@@ -74,9 +77,9 @@ The scope tree follows the specification exactly. A catch clause shares its scop
 
 ## [Symbols]($section.id('symbols'))
 
-A symbol's flags record its declaration kinds, such as `var`, `let`, `function`, `class`, `interface`, `enum`, and `import`, and its modifiers, such as `const`, `exported`, and `ambient`. Masks such as `Symbol.value_space` and `Symbol.any_import` answer a category in one `intersects`.
+A symbol's `flags` record its declaration kinds, such as `function_scoped_var`, `block_scoped_var`, `function`, `class`, `interface`, `regular_enum`, and `import`, and its modifiers, such as `const_var`, `exported`, and `ambient`. Masks answer a category in one call, as `flags.intersects(Symbol.value_space)` does, with `variable`, `any_import`, `value_space`, `type_space`, and `namespace_space`. `flags.visibleIn(space)` tells whether a reference in a space can bind to it.
 
-One rule decides both merging and redeclaration. Each declaration kind carries an exclusion mask, and a new declaration conflicts with an existing symbol whose flags intersect it, and merges into that symbol otherwise. Function overloads, a `class` and an `interface`, and a `namespace` and an `enum` all merge this way.
+One rule decides both merging and redeclaration. Each declaration kind carries an exclusion mask in `Symbol.Excludes`, and a new declaration conflicts with an existing symbol whose flags intersect it, and merges into that symbol otherwise. Function overloads, a `class` and an `interface`, and a `namespace` and an `enum` all merge this way.
 
 ## [Declaration spaces]($section.id('declaration-spaces'))
 
@@ -102,4 +105,4 @@ const records = try parser.semantic.module_record.collect(&tree, &semantic);
 // records.imports, records.exports, records.flags
 ```
 
-Imports are `named`, `namespace`, `side_effect`, `import_equals`, `dynamic`, or `require`, and dynamic `import()` and `require()` calls count when their specifier is a literal. Exports are `named`, `re_export`, `namespace`, `star`, `equals`, or `global`. CommonJS exports have no static shape, so `records.flags` records whether the file uses `require`, `module`, `exports`, or `import.meta`.
+An import has a `kind`, `name`, `symbol`, `specifier`, `type_only`, `phase`, and `node`. Its kind is `named`, `namespace`, `side_effect`, `import_equals`, `dynamic`, or `require`, and dynamic `import()` and `require()` calls count when their specifier is a string literal. An export has a `kind`, `name`, `symbol`, `from_name`, `specifier`, `type_only`, and `node`, and its kind is `named`, `re_export`, `namespace`, `star`, `equals`, or `global`. CommonJS exports have no static shape, so `records.flags` records whether the file uses `require`, `module`, `exports`, or `import.meta`.
