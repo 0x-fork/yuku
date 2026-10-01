@@ -243,7 +243,7 @@ Standardization reduces dimensionality as the team grows. Slower in the short te
 
 ## Project
 
-How this repository works. The runtime it ships to, where its tests go, and how a change lands.
+How this repository works. The runtime it ships to, where its tests go, how a change lands, and how a release ships.
 
 ### Runtime Baseline
 
@@ -271,12 +271,19 @@ Test at the layer that changed, in the form that layer already uses. Every layer
 ### Changes
 
 - **One change, one purpose.** The tree builds and every suite passes at every commit, and callers update in the same change as the API they use.
-- **Commit subjects follow Conventional Commits.** `type(scope): what changed`, lowercase, imperative, under seventy-two characters. The scope names the area touched, such as `parser`, `codegen`, or `lexer`, and is left out when a change spans areas.
-- **The type is a promise to the release notes.** Release notes are generated from commit subjects. `feat`, `fix`, and `perf` are for changes a user can observe, and `refactor`, `test`, `docs`, and `ci` for changes they cannot. A `!` after the type marks a breaking change, and every breaking change carries one.
-- **The subject says what, the body says why.** Write a body only when the subject cannot say why, in plain sentences wrapped at seventy-two columns. A pull-request description is not stored in the repository and is invisible in `git blame`, so it is not a replacement for a commit message.
+- **Commit messages follow Go.** `area: what changed`, lowercase, imperative, under seventy-two characters. The area is the part touched, such as `parser`, `codegen`, `lexer`, `docs`, or `ci`, and `all` when a change spans several.
+- **The subject says what, the body says why.** Write a body only when the subject cannot say why, in plain sentences wrapped at seventy-two columns. A breaking change always has one, saying what breaks and what to do instead. A pull-request description is not stored in the repository and is invisible in `git blame`, so it is not a replacement for a commit message.
 - **A pull-request title is a commit subject.** Squash-merging makes it one, so it follows the same rules.
 - **No attribution trailers, no tool links.** Not in commits, not in pull requests.
-- **Delete, do not deprecate.** Unused code and dependencies are removed. Removing a public export is a breaking change and is marked as one.
+- **Delete, do not deprecate.** Unused code and dependencies are removed. Removing a public export is a breaking change.
+
+### Releases
+
+- **Release notes are written by hand** in `CHANGELOG.md`, one `## <version>` section per release, newest first. Nothing generates them, so they say what a user needs to know and nothing else.
+- **Write them from the log, at release time.** `git log v<previous>..HEAD --format=%s` lists every subject since the last release. Keep the changes a user can observe, and leave out tests, CI, docs, and refactors.
+- **One line per change, written as its commit subject**, ending with its pull request and authors when it has them: `- parser: accept legal line breaks in TypeScript declarations (#218 by @author)`.
+- **Breaking changes come first.** When a release has any, they go under `### Breaking`, each saying what a user must change, and the rest under `### Changes`.
+- **Commit the notes, then bump.** `bun run release:npm` commits only the new versions, then tags and pushes. The publish workflow stops before building when `CHANGELOG.md` has no section for the tag, and posts that section as the GitHub release once the packages are on npm.
 
 ---
 

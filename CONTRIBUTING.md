@@ -86,4 +86,6 @@ Then open http://localhost:1990. When you're done, run `bun run docs:llms`.
 
 ## Open a pull request
 
-Run `bun run format` and `bun run test`, then open your PR.
+Run `bun run format` and `bun run test`, then open your PR. Title it like a
+commit subject, `area: what changed`, for example
+`parser: accept legal line breaks in TypeScript declarations`.

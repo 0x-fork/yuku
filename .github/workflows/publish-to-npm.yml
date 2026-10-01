@@ -13,7 +13,7 @@ jobs:
     name: Release Packages
     runs-on: ubuntu-latest
     permissions:
-      contents: write # changelogithub creates the GitHub Release
+      contents: write # gh creates the GitHub Release
       id-token: write # OIDC for npm provenance / trusted publishing
     steps:
       - name: Harden the runner
@@ -24,7 +24,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Zig
@@ -57,17 +56,29 @@ jobs:
       - name: Verify lockfile workspace versions
         run: bun .github/scripts/check-lock-versions.ts
 
+      # Read the notes before building, so a tag without them fails before
+      # anything is published.
+      - name: Read the release notes
+        run: bun .github/scripts/release-notes.ts "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+
       - name: Build
         run: bun run build:npm
 
       - name: Build wasm
         run: bun run build:wasm
 
-      - name: Generate changelog
-        run: bunx changelogithub@14.0.0
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish packages to npm
         run: bun napi-zig publish
+
+      - name: Create the GitHub release
+        run: |
+          prerelease=false
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease=true; fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --prerelease="$prerelease" \
+            --verify-tag
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
