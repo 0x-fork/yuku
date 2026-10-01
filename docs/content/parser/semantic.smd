@@ -7,7 +7,10 @@
 ---
 Semantic analysis turns a tree into a model of the program: every scope, symbol, and reference, with each reference resolved to the binding it names. The same pass reports the early errors parsing alone cannot catch, such as redeclarations and private fields used outside their class, so together with the parser it covers every early error the specification requires.
 
-It is a separate pass, so the parse stays fast and only the tools that need semantics pay for them. In JavaScript, [`yuku-analyzer`](/analyzer/) queries the same model, plus cross-file linking.
+It is a separate pass, so the parse stays fast and only the tools that need semantics pay for them.
+
+># [From JavaScript]($block.attrs('note'))
+>[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) brings this model to JavaScript, computed natively and queried as plain objects, with cross-file linking across a module graph. Its README documents the full API.
 
 ## [Analyzing a tree]($section.id('analyzing-a-tree'))
 

@@ -30,7 +30,6 @@ A high-performance JavaScript and TypeScript compiler toolchain written in Zig, 
 - [Semantic analysis](https://yuku.fyi/parser/semantic/): scopes, symbols, resolved references, every early error, and module records.
 - [Traverser](https://yuku.fyi/parser/traverse/): typed visitors in four modes, from plain walks to full semantics and in-place transforms.
 - [Codegen](https://yuku.fyi/parser/codegen/): printing back to source, with type stripping, minification, and source maps.
-- [Analyzer](https://yuku.fyi/analyzer/): semantic analysis and cross-file linking, queried from JavaScript.
 
 ## At a glance
 
@@ -297,7 +296,10 @@ Source: https://yuku.fyi/parser/semantic/
 
 Semantic analysis turns a tree into a model of the program: every scope, symbol, and reference, with each reference resolved to the binding it names. The same pass reports the early errors parsing alone cannot catch, such as redeclarations and private fields used outside their class, so together with the parser it covers every early error the specification requires.
 
-It is a separate pass, so the parse stays fast and only the tools that need semantics pay for them. In JavaScript, [`yuku-analyzer`](https://yuku.fyi/analyzer/) queries the same model, plus cross-file linking.
+It is a separate pass, so the parse stays fast and only the tools that need semantics pay for them.
+
+> **From JavaScript**
+>[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) brings this model to JavaScript, computed natively and queried as plain objects, with cross-file linking across a module graph. Its README documents the full API.
 
 ## Analyzing a tree
 
@@ -617,40 +619,6 @@ const map = result.map.?; // the Source Map V3 fields, with `mappings` encoded
 ```
 
 Mappings come from the same walk that prints the code, with columns in UTF-16 code units, the convention of browser devtools and source map libraries.
-
-# Analyzer
-
-Source: https://yuku.fyi/analyzer/
-
-`yuku-analyzer` brings Yuku's [semantic analysis](https://yuku.fyi/parser/semantic/) to JavaScript, computed natively in one pass and queried as plain objects. It replaces `eslint-scope` or `@typescript-eslint/scope-manager` and a cross-file resolver, up to ~15× faster per file.
-
-```bash
-npm install yuku-analyzer
-```
-
-```js
-import { Analyzer, SymbolFlags } from "yuku-analyzer";
-
-const a = new Analyzer();
-a.addFile("math.ts", `export const add = (x: number, y: number) => x + y;`);
-a.addFile("app.ts", `import { add } from "./math.ts"; add(1, 2);`);
-
-const add = a.module("app.ts").rootScope.find("add");
-add.has(SymbolFlags.Import); // true
-add.definition().module.path; // "math.ts"
-```
-
-For a single file, `analyze(source)` returns the same module in one call.
-
-- **Scopes** as a tree, with hoisting, catch clauses, and named expressions exact.
-- **Symbols** with TypeScript declaration merging, queried through one `SymbolFlags` bitset.
-- **References** resolved and space-aware, so a value never captures a same-named type.
-- **Node queries** on object identity, such as `symbolOf`, `scopeOf`, and `parentOf`.
-- **A semantic walk**, with the scope, symbol, and reference of every node in its context.
-- **Closure analysis** with `capturesOf`, shadowing and alias correct.
-- **Cross-file linking**, with definitions, references, and exported names across the module graph.
-
-The AST is the same plain ESTree `yuku-parser` returns, so a rename is an assignment and `yuku-codegen` prints it back. See [yuku-analyzer on npm](https://www.npmjs.com/package/yuku-analyzer) for the full API.
 
 # Testing
 

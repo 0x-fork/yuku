@@ -14,7 +14,6 @@ const ORDER = [
   "parser/semantic",
   "parser/traverse",
   "parser/codegen",
-  "analyzer",
   "testing",
   "security",
 ];

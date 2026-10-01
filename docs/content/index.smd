@@ -28,7 +28,6 @@ A high-performance JavaScript and TypeScript compiler toolchain written in Zig, 
 - [Semantic analysis](/parser/semantic/): scopes, symbols, resolved references, every early error, and module records.
 - [Traverser](/parser/traverse/): typed visitors in four modes, from plain walks to full semantics and in-place transforms.
 - [Codegen](/parser/codegen/): printing back to source, with type stripping, minification, and source maps.
-- [Analyzer](/analyzer/): semantic analysis and cross-file linking, queried from JavaScript.
 
 ## [At a glance]($section.id('at-a-glance'))
 
