@@ -23,7 +23,7 @@ parse("const x = 1;", { core });
 new Analyzer({ core });
 ```
 
-`load()` loads `@yuku-core/wasm/yuku-core.wasm`, fetching it in browsers and reading it from disk in Node.js and Bun. To load it from elsewhere, pass a URL, a `Response`, the module's bytes, or a compiled `WebAssembly.Module`.
+`load()` loads `@yuku-core/wasm/yuku-core.wasm`, fetching it in browsers and reading it from disk elsewhere. To load it from elsewhere, pass a URL, a `Response`, the module's bytes, or a compiled `WebAssembly.Module`.
 
 Runtimes that import `.wasm` files as compiled modules, such as Cloudflare Workers, load the core synchronously with `loadSync`, which takes the module or its bytes.
 

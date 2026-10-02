@@ -52,7 +52,7 @@ Yuku's compiled code, the core, is shared by every package rather than built int
 
 ### WebAssembly
 
-The core comes in two builds, with the same API and byte-identical results. The native core is the fastest. It is installed for your platform with the packages, and they use it unless you pass another, so on Node.js and Bun there is nothing to set up.
+The core comes in two builds, with the same API and byte-identical results. The native core is the fastest. It is installed for your platform with the packages, and they use it unless you pass another, so there is nothing to set up.
 
 The WebAssembly core runs anywhere: in browsers, in edge runtimes, and on platforms without a native build. Install [`@yuku-core/wasm`](https://www.npmjs.com/package/@yuku-core/wasm), load it, and pass it in.
 
