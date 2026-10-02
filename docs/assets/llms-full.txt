@@ -48,7 +48,7 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 
 Each package documents its API in its README.
 
-Yuku's compiled code, the core, is shared by every package rather than built into each one, so it is downloaded once however many packages you install. `yuku-parser` and `yuku-analyzer` together install 907 kB, where two packages with their own binaries would take 1.58 MB. Toolchains that build a binary per tool repeat the same parser inside every one.
+Yuku's compiled code, the core, is shared by every package rather than built into each one, so it is downloaded once however many packages you install. `yuku-parser` and `yuku-analyzer` together install 907 kB, where two packages with their own binaries would take 1.58 MB. Toolchains that build a binary per tool repeat the same parser inside every one, so the gap widens with every tool Yuku adds. Tools to come, such as the transformer, take the AST the core parses instead of carrying a parser of their own.
 
 ### WebAssembly
 
