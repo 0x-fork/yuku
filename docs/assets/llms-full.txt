@@ -18,8 +18,11 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 | [Parser](https://yuku.fyi/parser/)                     | JavaScript, TypeScript, and JSX to an AST, recovering from errors           |
 | [AST](https://yuku.fyi/parser/ast/)                    | The syntax tree, with comments and tokens alongside                         |
 | [Semantic analysis](https://yuku.fyi/parser/semantic/) | Scopes, symbols, resolved references, early errors, and module records      |
-| [Traverser](https://yuku.fyi/parser/traverse/)         | Typed visitors, from plain walks to full semantics and in-place transforms  |
+| [Traverse](https://yuku.fyi/parser/traverse/)          | Typed visitors, from plain walks to full semantics and in-place transforms  |
 | [Codegen](https://yuku.fyi/parser/codegen/)            | Printing back to source, with type stripping, minification, and source maps |
+
+> **About these docs**
+>These pages cover the surface: what each part does and the API you build on. Beneath it is far more, an engine built for exactness and speed down to the last detail. To go deeper, read the [source](https://github.com/yuku-toolchain/yuku). It is typed and documented throughout, and it answers you or your coding agent more precisely than any guide could. Each npm package documents its complete JavaScript API in its README.
 
 ## Why Yuku
 
@@ -151,7 +154,7 @@ The parser and analyzer share one 610 kB native binary, installed once however m
 
 Source: https://yuku.fyi/parser/
 
-Yuku's parser turns JavaScript and TypeScript into an [AST](https://yuku.fyi/parser/ast/). It recovers from errors, so a parse with diagnostics still returns a tree of everything it could read.
+Yuku's parser turns JavaScript, TypeScript, and JSX into an [AST](https://yuku.fyi/parser/ast/). It recovers from errors, so a parse with diagnostics still returns a tree of everything it could read.
 
 ## JavaScript
 
@@ -218,6 +221,16 @@ for (tree.diagnostics.items) |d| {
 ```
 
 `tree.hasErrors()` tells whether any error occurred, and `tree.hasDiagnostics()` whether anything was reported. [Semantic analysis](https://yuku.fyi/parser/semantic/) adds the early errors that need scopes, such as duplicate `let` declarations and `break` outside a loop.
+
+## Extensions
+
+Syntax beyond ECMAScript and TypeScript, such as a framework's template forms, plugs into the parser at compile time. A Zig file binds it, with a `pub fn` named after each extension point it handles, and the build selects that file.
+
+```zig
+const yuku = b.dependency("yuku", .{ .@"parser-extension" = b.pathFromRoot("src/syntax.zig") });
+```
+
+At its point, a hook reads the parser and returns what the point asks for, reports a diagnostic, or declines. An unknown point or a wrong signature is a compile error, and a point left unbound costs nothing. [extension.zig](https://github.com/yuku-toolchain/yuku/blob/main/src/parser/extension.zig) lists every point and its contract.
 
 # AST
 
@@ -333,10 +346,28 @@ Semantic analysis turns a tree into a model of the program: every scope, symbol,
 
 It is a separate pass, so the parse stays fast and only the tools that need semantics pay for them.
 
-> **From JavaScript**
->[`yuku-analyzer`](https://www.npmjs.com/package/yuku-analyzer) brings this model to JavaScript, computed natively and queried as plain objects, with cross-file linking across a module graph. Its README documents the full API.
+## JavaScript
 
-## Analyzing a tree
+```bash
+npm install yuku-analyzer
+```
+
+```js
+import { Analyzer } from "yuku-analyzer";
+
+const project = new Analyzer();
+
+project.setFile("a.ts", `export const value = 1;`);
+project.setFile("b.ts", `export { value as renamed } from "./a.ts";`);
+project.setFile("c.ts", `import { renamed } from "./b.ts"; renamed;`);
+
+project.module("c.ts").rootScope.find("renamed").definition().binding.name;
+// "value"
+```
+
+The same model as plain objects, computed natively, with every import linked across a project. See [yuku-analyzer on npm](https://www.npmjs.com/package/yuku-analyzer) for the full API.
+
+## Zig
 
 ```zig
 var tree = try parser.parse(allocator, source, .{});
@@ -608,7 +639,7 @@ import { parse } from "yuku-parser";
 const { code, map, diagnostics } = generate(parse("const x = 1 + 2;").program);
 ```
 
-The same printer in plain JavaScript, for any ESTree AST, with [byte-identical output](https://yuku.fyi/testing/#codegen), source maps included. It runs 2.6x faster than `@babel/generator`, or 3x with source maps on. See [yuku-codegen on npm](https://www.npmjs.com/package/yuku-codegen) for the full API.
+The same printer in plain JavaScript, for any ESTree AST, with [byte-identical output](https://yuku.fyi/testing/#codegen), source maps included. It runs 2.6× faster than `@babel/generator`, or 3× with source maps on. See [yuku-codegen on npm](https://www.npmjs.com/package/yuku-codegen) for the full API.
 
 ## Zig
 
