@@ -2,7 +2,15 @@
 
 Scopes, bindings, resolved references, closures, and cross-file linking for JavaScript and TypeScript, computed natively, part of [Yuku](https://yuku.fyi).
 
-It does the work of `eslint-scope` or `@typescript-eslint/scope-manager` and a cross-file resolver. On [real codebases](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js) it is 5–11× faster than typescript-eslint and 4–7× faster than getting the same answers from TypeScript's API, using up to 5× less memory.
+Getting the same answers otherwise takes a stack of tools, each parsing every file again into its own tree:
+
+- `@typescript-eslint/typescript-estree` for the AST
+- `@typescript-eslint/scope-manager` or `eslint-scope` for scopes, bindings, and references
+- TypeScript's API for names resolved across files, merged declarations, and exports
+- a module resolver, such as `enhanced-resolve`, to find the file behind each import
+- the glue that maps one tool's nodes onto another's
+
+`yuku-analyzer` is all of it in one package, from one parse. On [real codebases](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js) it is 5–11× faster than typescript-eslint and 4–7× faster than TypeScript's API, using up to 5× less memory. Each of those compares it with a single tool, so against the whole stack the gap only widens.
 
 It is as accurate as it is fast. [Read how it is tested →](https://yuku.fyi/testing/#semantic-analysis)
 
