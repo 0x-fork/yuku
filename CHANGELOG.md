@@ -2,6 +2,19 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.17.0
+
+### Breaking
+
+- all: pass the core explicitly and rename the engine to yuku-core (#227 by @arshad-yaseen)
+  - `yuku-engine` is `yuku-core`, and `@yuku-engine/wasm` is `@yuku-core/wasm`.
+  - `init()` is gone. Load the WebAssembly core with `load()` or `loadSync()` from `@yuku-core/wasm` and pass it as `core` to `parse`, `analyze`, or `new Analyzer`.
+  - Installing `@yuku-core/wasm` no longer switches the packages to it, and a platform without a native build no longer falls back to it. Pass it in as `core` instead.
+
+### Changes
+
+- wasm: build the WebAssembly core for speed (#227 by @arshad-yaseen)
+
 ## 0.15.1
 
 ### Changes
