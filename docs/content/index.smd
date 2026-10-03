@@ -11,7 +11,7 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 
 ## [Why Yuku]($section.id('why-yuku'))
 
-**Correct.** 100% ECMAScript spec compliant, with zero failures and zero AST mismatches across the [parser test suite](/testing/), and every name resolved as the TypeScript checker resolves it.
+**Correct.** 100% ECMAScript spec compliant, with zero failures and zero AST mismatches across the [test suite](/testing/).
 
 **Fast.** Data-oriented from the ground up, with rigorous performance engineering.
 
