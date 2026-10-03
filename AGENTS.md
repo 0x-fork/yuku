@@ -273,7 +273,7 @@ Test at the layer that changed, in the form that layer already uses. Every layer
 ### Changes
 
 - **One change, one purpose.** The tree builds and every suite passes at every commit, and callers update in the same change as the API they use.
-- **Commit messages follow Go.** `area: what changed`, lowercase, imperative, under seventy-two characters. The area is the part touched, such as `parser`, `codegen`, `lexer`, `docs`, or `ci`, and `all` when a change spans several.
+- **Commit messages follow Go.** `area: what changed`, lowercase, imperative, under seventy-two characters. Keep the message minimal and short, never verbose. The area is the part touched, such as `parser`, `codegen`, `lexer`, `docs`, or `ci`, and `all` when a change spans several.
 - **The subject says what, the body says why.** Write a body only when the subject cannot say why, in plain sentences wrapped at seventy-two columns. A breaking change always has one, saying what breaks and what to do instead. A pull-request description is not stored in the repository and is invisible in `git blame`, so it is not a replacement for a commit message.
 - **A pull-request title is a commit subject.** Squash-merging makes it one, so it follows the same rules.
 - **No attribution trailers, no tool links.** Not in commits, not in pull requests.
