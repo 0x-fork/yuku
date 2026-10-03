@@ -198,7 +198,7 @@ interface Module {
   walkAsync(visitors: AsyncSemanticVisitors, root?: Node): Promise<void>;
   /** Every node of the given types, in source order. */
   findAll<K extends NodeType>(type: K): NodeOfType<K>[];
-  findAll<K extends NodeType>(types: Iterable<K>): NodeOfType<K>[];
+  findAll<K extends NodeType>(types: readonly K[]): NodeOfType<K>[];
 }
 
 interface Scope {

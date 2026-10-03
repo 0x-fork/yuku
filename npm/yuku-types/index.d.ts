@@ -385,7 +385,7 @@ type Literal =
 
 interface ArrayPattern extends BaseNode {
   type: "ArrayPattern";
-  elements: Array<BindingPattern | RestElement | null>;
+  elements: Array<BindingPattern | SimpleAssignmentTarget | RestElement | null>;
   decorators?: Decorator[];
   optional?: boolean;
   typeAnnotation?: TSTypeAnnotation | null;
@@ -401,7 +401,7 @@ interface ObjectPattern extends BaseNode {
 
 interface AssignmentPattern extends BaseNode {
   type: "AssignmentPattern";
-  left: BindingPattern;
+  left: BindingPattern | SimpleAssignmentTarget;
   right: Expression;
   decorators?: Decorator[];
   optional?: boolean;
@@ -410,7 +410,7 @@ interface AssignmentPattern extends BaseNode {
 
 interface RestElement extends BaseNode {
   type: "RestElement";
-  argument: BindingPattern;
+  argument: BindingPattern | SimpleAssignmentTarget;
   decorators?: Decorator[];
   optional?: boolean;
   typeAnnotation?: TSTypeAnnotation | null;
@@ -436,7 +436,7 @@ interface BindingProperty extends BaseNode {
   type: "Property";
   kind: "init";
   key: PropertyKey;
-  value: BindingPattern;
+  value: BindingPattern | SimpleAssignmentTarget;
   method: false;
   shorthand: boolean;
   computed: boolean;
@@ -1243,7 +1243,7 @@ interface TSTypeQuery extends BaseNode {
   typeArguments: TSTypeParameterInstantiation | null;
 }
 
-type TSTypeQueryExprName = IdentifierReference | TSQualifiedName | TSImportType;
+type TSTypeQueryExprName = IdentifierReference | TSQualifiedName | ThisExpression | TSImportType;
 
 interface TSImportType extends BaseNode {
   type: "TSImportType";
