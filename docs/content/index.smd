@@ -9,16 +9,6 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 
 [Try it in the playground →](https://playground.yuku.fyi)
 
-## [Components]($section.id('components'))
-
-| Component                              | Purpose                                                                     |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| [Parser](/parser/)                     | JavaScript, TypeScript, and JSX to an AST, recovering from errors           |
-| [AST](/parser/ast/)                    | The syntax tree, with comments and tokens alongside                         |
-| [Semantic analysis](/parser/semantic/) | Scopes, symbols, resolved references, early errors, and module records      |
-| [Traverse](/parser/traverse/)          | Typed visitors, from plain walks to full semantics and in-place transforms  |
-| [Codegen](/parser/codegen/)            | Printing back to source, with type stripping, minification, and source maps |
-
 ># [About these docs]($block.attrs('note'))
 >These pages cover the surface: what each part does and the API you build on. Beneath it is far more, a core built for exactness and speed down to the last detail. To go deeper, read the [source](https://github.com/yuku-toolchain/yuku). It is typed and documented throughout, and it answers you or your coding agent more precisely than any guide could. Each npm package documents its complete JavaScript API in its README.
 
