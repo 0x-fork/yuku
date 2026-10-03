@@ -270,7 +270,7 @@ pub const NodePath = struct {
         return if (pos < capacity) self.buf[pos] else null;
     }
 
-    /// Returns the current nesting depth (0 at root).
+    /// Returns the current nesting depth (1 at the root).
     pub inline fn depth(self: *const NodePath) usize {
         return self.len;
     }

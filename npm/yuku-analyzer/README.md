@@ -246,7 +246,7 @@ module.walk({
 | `NamespaceModule`        | a namespace of any kind                      |
 | `ValueImport`            | `import x`, `import { x }`                   |
 | `TypeImport`             | `import type`, `import { type x }`           |
-| `Const`                  | `const`, `using`                             |
+| `Const`                  | `const`, `using`, `await using`              |
 | `Ambient`                | `declare`                                    |
 | `Parameter`              | a parameter                                  |
 | `CatchVariable`          | `catch (e)`                                  |

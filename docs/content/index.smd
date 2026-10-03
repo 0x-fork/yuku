@@ -53,7 +53,7 @@ const core = await load();
 parse("const x = 1;", { core });
 ```
 
-Load it once and pass the same core to every package, so your code always shows which core runs. To choose the native core explicitly, load it from `yuku-core` the same way.
+Load it once and pass the same core to every package that takes one, so your code always shows which core runs. To choose the native core explicitly, load it from `yuku-core` the same way.
 
 Runtimes that import `.wasm` files as compiled modules, such as Cloudflare Workers, load the core synchronously with `loadSync`.
 

@@ -141,7 +141,7 @@ tokens.isBinaryOperator(i)
 tokens.isLogicalOperator(i)
 tokens.isUnaryOperator(i)
 tokens.isAssignmentOperator(i)
-tokens.precedence(i)                // binary precedence, 0 when none
+tokens.precedence(i)                // operator precedence, 0 when none
 
 tokens.newlineBefore(i)             // what ASI reads
 tokens.escaped(i)

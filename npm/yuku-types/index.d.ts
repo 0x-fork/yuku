@@ -108,12 +108,12 @@ interface TokenList {
   isLogicalOperator(index: number): boolean;
   isUnaryOperator(index: number): boolean;
   isAssignmentOperator(index: number): boolean;
-  /** Binary precedence, 0 when none. */
+  /** Operator precedence, 0 when none. */
   precedence(index: number): number;
 
   /** A line terminator precedes the token, what ASI looks at. */
   newlineBefore(index: number): boolean;
-  /** The text has a unicode escape. */
+  /** The text has an escape sequence. */
   escaped(index: number): boolean;
   /** A template chunk whose cooked value is undefined. */
   invalidEscape(index: number): boolean;
@@ -1656,10 +1656,11 @@ interface Program extends BaseNode {
 }
 
 /**
- * An element of `Program.body`. Unlike {@link Statement}, this also includes
- * {@link ModuleDeclaration} (`import`/`export`) and {@link Directive}, which
- * are only valid at the top level of a program, never in nested statement
- * positions such as a block, loop, or `if` body.
+ * An element of `Program.body` or `TSModuleBlock.body`. Unlike {@link Statement},
+ * this also includes {@link ModuleDeclaration} (`import`/`export`) and
+ * {@link Directive}, which are never valid in nested statement positions such
+ * as a loop or `if` body. Directives also open a function body, so
+ * `BlockStatement.body` holds them too.
  */
 type ProgramStatement = Statement | ModuleDeclaration | Directive;
 

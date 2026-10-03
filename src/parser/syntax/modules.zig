@@ -195,7 +195,7 @@ fn parseImportClause(parser: *Parser, import_kind: ast.ImportOrExportKind) Error
 }
 
 // import foo from 'm'
-//            ~~~
+//        ~~~
 fn parseImportDefaultSpecifier(parser: *Parser) Error!?ast.NodeIndex {
     const start = parser.current_token.span.start;
 

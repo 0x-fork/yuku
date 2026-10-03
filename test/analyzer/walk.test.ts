@@ -220,7 +220,7 @@ describe("node queries", () => {
     expect(module.referenceOf(reference!.node)).toBe(reference!);
   });
 
-  test("resolve walks the scope chain from a starting scope", () => {
+  test("lookup walks the scope chain from a starting scope", () => {
     const module = analyze(`let outer = 1; function f() { let local = 2; }`);
     const bodyScope = module.scopes.find((s) => s.kind === "functionBody")!;
     expect(module.lookup("local", { from: bodyScope })?.name).toBe("local");

@@ -12,7 +12,7 @@
 //   attached_comments  attached_comment_count * ATTACHED_COMMENT_SIZE bytes
 //   comments           comment_count * COMMENT_SIZE bytes in source order, only with FLAG_COMMENTS
 //   tokens             token_count * TOKEN_SIZE bytes, one `Token` each, copied as is
-//   diagnostics        variable length, written by the serializer and skipped by the decoder
+//   diagnostics        variable length, entries laid out below
 //
 // node packing, per field type
 //

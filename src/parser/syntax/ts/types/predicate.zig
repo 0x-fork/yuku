@@ -23,7 +23,7 @@ pub fn parseTypeAnnotation(parser: *Parser) Error!?ast.NodeIndex {
 }
 
 // function f(x): x is T { ... }   function f(x): asserts x is T { ... }
-//                ^^^^^^                            ^^^^^^^^^^^^^^
+//                ^^^^^^                          ^^^^^^^^^^^^^^
 pub fn parseReturnTypeAnnotation(parser: *Parser) Error!?ast.NodeIndex {
     std.debug.assert(parser.current_token.tag == .colon);
 

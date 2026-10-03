@@ -63,7 +63,7 @@ declare const BindingFlags: {
   readonly ValueImport: number;
   /** `import type` or `import { type x }`. */
   readonly TypeImport: number;
-  /** `const` or `using`. */
+  /** `const`, `using`, or `await using`. */
   readonly Const: number;
   /** `declare`. */
   readonly Ambient: number;
@@ -295,7 +295,7 @@ interface Export {
   /** The name a `"reExport"` takes from its module. */
   readonly fromName: string | null;
   readonly typeOnly: boolean;
-  /** The specifier, the declaration, or the statement. */
+  /** The specifier, the declared name, or the statement. */
   readonly node: Node;
   /** The module it re-exports from, null outside the project. Links. */
   readonly resolvedModule: Module | null;

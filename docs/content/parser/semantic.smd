@@ -91,7 +91,7 @@ while (references.next()) |entry| {
 
 ## [Scopes]($section.id('scopes'))
 
-The scope tree follows the specification exactly. A catch clause shares its scope with its body, a named function or class expression gets a scope of its own for the name, every function body scopes its `let` and `const` apart from the parameters as TypeScript does, a class decorator sees the scope around its class, and a member decorator the class scope. Strict mode flows from modules, classes, and `"use strict"` directives.
+The scope tree follows the specification exactly. A catch clause shares its scope with its body unless its parameter has a default value or a computed key, a named function or class expression gets a scope of its own for the name, every function body scopes its `let` and `const` apart from the parameters as TypeScript does, a class decorator sees the scope around its class, and a member decorator the class scope. Strict mode flows from modules, classes, and `"use strict"` directives.
 
 ## [Symbols]($section.id('symbols'))
 

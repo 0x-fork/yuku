@@ -95,7 +95,7 @@ pub fn isStartOfMappedType(parser: *Parser) bool {
 }
 
 // { [K in T]: V }   { readonly [K in T]?: V }   { -readonly [K in T as U]-?: V }
-// ^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// ^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 pub fn parseMappedType(parser: *Parser) Error!?ast.NodeIndex {
     std.debug.assert(parser.current_token.tag == .left_brace);
 

@@ -126,7 +126,7 @@ comptime {
     std.debug.assert(IMPORT_SIZE == 8 * 4);
     std.debug.assert(EXPORT_SIZE == 10 * 4);
 
-    // the raw bitset layout is a contract with the JS SymbolFlags constants
+    // the raw bitset layout is a contract with the JS BindingFlags constants
     std.debug.assert(@bitSizeOf(Symbol.Flags) == 32);
     std.debug.assert(@bitOffsetOf(Symbol.Flags, "function_scoped_var") == 0);
     std.debug.assert(@bitOffsetOf(Symbol.Flags, "block_scoped_var") == 1);

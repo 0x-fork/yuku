@@ -11,16 +11,6 @@ Yuku is a high-performance JavaScript and TypeScript compiler toolchain written 
 
 [Try it in the playground →](https://playground.yuku.fyi)
 
-## Components
-
-| Component                              | Purpose                                                                     |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| [Parser](https://yuku.fyi/parser/)                     | JavaScript, TypeScript, and JSX to an AST, recovering from errors           |
-| [AST](https://yuku.fyi/parser/ast/)                    | The syntax tree, with comments and tokens alongside                         |
-| [Semantic analysis](https://yuku.fyi/parser/semantic/) | Scopes, symbols, resolved references, early errors, and module records      |
-| [Traverse](https://yuku.fyi/parser/traverse/)          | Typed visitors, from plain walks to full semantics and in-place transforms  |
-| [Codegen](https://yuku.fyi/parser/codegen/)            | Printing back to source, with type stripping, minification, and source maps |
-
 > **About these docs**
 >These pages cover the surface: what each part does and the API you build on. Beneath it is far more, a core built for exactness and speed down to the last detail. To go deeper, read the [source](https://github.com/yuku-toolchain/yuku). It is typed and documented throughout, and it answers you or your coding agent more precisely than any guide could. Each npm package documents its complete JavaScript API in its README.
 
@@ -65,7 +55,7 @@ const core = await load();
 parse("const x = 1;", { core });
 ```
 
-Load it once and pass the same core to every package, so your code always shows which core runs. To choose the native core explicitly, load it from `yuku-core` the same way.
+Load it once and pass the same core to every package that takes one, so your code always shows which core runs. To choose the native core explicitly, load it from `yuku-core` the same way.
 
 Runtimes that import `.wasm` files as compiled modules, such as Cloudflare Workers, load the core synchronously with `loadSync`.
 
@@ -302,7 +292,7 @@ for (tree.tokens) |token| {
 ```zig
 token.tag.isKeyword()             // also isReserved, isIdentifierLike, isNumericLiteral,
                                   // and the operator kinds
-token.tag.precedence()            // binary precedence, 0 when none
+token.tag.precedence()            // operator precedence, 0 when none
 token.hasLineTerminatorBefore()   // what ASI reads
 token.isEscaped()                 // also hasInvalidEscape and hasLoneSurrogates
 ```
@@ -399,7 +389,7 @@ while (references.next()) |entry| {
 
 ## Scopes
 
-The scope tree follows the specification exactly. A catch clause shares its scope with its body, a named function or class expression gets a scope of its own for the name, every function body scopes its `let` and `const` apart from the parameters as TypeScript does, a class decorator sees the scope around its class, and a member decorator the class scope. Strict mode flows from modules, classes, and `"use strict"` directives.
+The scope tree follows the specification exactly. A catch clause shares its scope with its body unless its parameter has a default value or a computed key, a named function or class expression gets a scope of its own for the name, every function body scopes its `let` and `const` apart from the parameters as TypeScript does, a class decorator sees the scope around its class, and a member decorator the class scope. Strict mode flows from modules, classes, and `"use strict"` directives.
 
 ## Symbols
 

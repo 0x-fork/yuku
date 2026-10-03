@@ -135,7 +135,7 @@ pub const Symbol = struct {
         }
     };
 
-    // mirrored into the JS decoder's SymbolFlags
+    // mirrored into the JS decoder's BindingFlags
 
     /// `var` / `let` / `const`, parameters and catch bindings included.
     pub const variable: Flags = .{ .function_scoped_var = true, .block_scoped_var = true };
@@ -435,7 +435,7 @@ pub const Semantic = struct {
         return .{ .node_parents = self.node_parents, .current = node };
     }
 
-    /// The `binding_identifier` node of every declaration of `id`, in
+    /// The name node of every declaration of `id`, in
     /// source order. A conflicting redeclaration is recorded here too, so
     /// check `tree.hasErrors()` when only legal declarations matter.
     ///
@@ -939,7 +939,7 @@ pub const SymbolTracker = struct {
                 try self.pushSavedContext();
                 // infer declares in the enclosing conditional so the true branch sees it
                 //   T extends ((k: infer I) => void) ? I : never
-                //   //                  ^ declares here    ^ resolves
+                //   //                   ^ declares    ^ resolves
                 const target = if (parent != .null and self.tree.data(parent) == .ts_infer_type)
                     inferScope(self.tree, scope, parent)
                 else
@@ -1063,7 +1063,7 @@ pub const SymbolTracker = struct {
             // parameter binding, renamers need the link
             //
             //   function isStr(v: unknown): v is string {}
-            //                  ^             ^ references the parameter
+            //                  ^            ^ references the parameter
             .ts_type_predicate => |pred| {
                 if (pred.parameter_name == .null) return;
                 const pname = self.tree.data(pred.parameter_name);
@@ -1290,7 +1290,7 @@ pub const SymbolTracker = struct {
         return self.symbols.items[@intFromEnum(id)];
     }
 
-    /// The `binding_identifier` node of the earliest declaration of `id`.
+    /// The name node of the earliest declaration of `id`.
     pub fn firstDeclOf(self: *const SymbolTracker, id: SymbolId) ast.NodeIndex {
         std.debug.assert(id != .none);
         std.debug.assert(@intFromEnum(id) < self.first_decls.items.len);
