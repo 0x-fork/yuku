@@ -197,10 +197,8 @@ pub const Symbol = struct {
         /// A TypeScript function.
         pub const function: Flags = blk: {
             var f = value_space;
-            f.function_scoped_var = false;
             f.function = false;
             f.value_module = false;
-            f.class = false;
             break :blk f;
         };
 
@@ -291,7 +289,9 @@ pub const Reference = struct {
         write: bool = false,
         /// The declaration space this position resolves in.
         space: Space = .value,
-        _: u4 = 0,
+        /// True when the use is erased with the types.
+        type_position: bool = false,
+        _: u3 = 0,
     };
 
     /// The declaration space a syntactic position resolves in, matching
@@ -315,20 +315,12 @@ pub const Reference = struct {
         value,
         /// A type use.
         type,
-        /// The qualifier of a dotted type name, `ns` in `ns.T`.
+        /// The qualifier of a dotted name, `ns` in `ns.T` and `import x = ns.T`.
         namespace,
         /// A value use inside a type, such as the entity of a `typeof` query.
         typeof,
         /// An alias position that accepts every space, such as `export { x }`.
         any,
-
-        /// True for positions inside a type-only subtree.
-        pub inline fn inTypePosition(self: Space) bool {
-            return switch (self) {
-                .type, .namespace, .typeof => true,
-                .value, .any => false,
-            };
-        }
     };
 };
 
@@ -672,6 +664,7 @@ pub const SymbolTracker = struct {
     /// `export` declaration.
     export_state: ExportState = .none,
     ambient: bool = false,
+    excluded_imports: Symbol.Flags,
 
     saved_stack: std.ArrayList(SavedContext) = .empty,
 
@@ -690,6 +683,8 @@ pub const SymbolTracker = struct {
         is_write: bool,
         /// The declaration space the identifier resolves in.
         space: Reference.Space = .value,
+        /// The identifier is erased with the types.
+        type_position: bool = false,
     };
 
     const DeclPair = struct { sid: SymbolId, node: ast.NodeIndex };
@@ -708,6 +703,7 @@ pub const SymbolTracker = struct {
             .tree = tree,
             .allocator = alloc,
             .ambient = tree.lang == .dts,
+            .excluded_imports = if (tree.isTs()) .{} else Symbol.any_import,
         };
 
         const nodes: u32 = @intCast(tree.nodes.len);
@@ -747,9 +743,10 @@ pub const SymbolTracker = struct {
                 switch (decl.kind) {
                     .@"var" => {
                         const target = scope.hoistTarget();
-                        // module-level functions are lexical, elsewhere (and in ts) `var` merges
-                        var excludes = Symbol.Excludes.function_scoped_var;
-                        if (!self.tree.isTs() and scope.get(target).kind == .module) {
+                        // ts and module-level functions never merge with `var`
+                        var excludes =
+                            Symbol.Excludes.function_scoped_var.merge(self.excluded_imports);
+                        if (self.tree.isTs() or scope.get(target).kind == .module) {
                             excludes.function = true;
                         }
                         self.pending = .{
@@ -764,7 +761,7 @@ pub const SymbolTracker = struct {
                             .const_var = decl.kind != .let,
                             .ambient = ambient,
                         },
-                        .excludes = Symbol.Excludes.block_scoped_var,
+                        .excludes = Symbol.Excludes.block_scoped_var.merge(self.excluded_imports),
                         .scope = scope.current,
                     },
                 }
@@ -788,12 +785,12 @@ pub const SymbolTracker = struct {
 
                 self.pending = .{
                     .flags = .{ .function = true, .ambient = ambient },
-                    .excludes = if (self.tree.isTs())
+                    .excludes = (if (self.tree.isTs())
                         Symbol.Excludes.function
                     else if (var_like)
                         Symbol.Excludes.function_scoped_var
                     else
-                        Symbol.Excludes.block_scoped_var,
+                        Symbol.Excludes.block_scoped_var).merge(self.excluded_imports),
                     .scope = target,
                 };
 
@@ -809,7 +806,7 @@ pub const SymbolTracker = struct {
                         .class = true,
                         .ambient = cls.declare or self.ambient,
                     },
-                    .excludes = Symbol.Excludes.class,
+                    .excludes = Symbol.Excludes.class.merge(self.excluded_imports),
                     .scope = if (is_decl) scope.currentScope().parent else exprNameScope(scope),
                 };
                 // expression names are local
@@ -841,7 +838,10 @@ pub const SymbolTracker = struct {
                         .{ .type_import = true }
                     else
                         .{ .import = true },
-                    .excludes = Symbol.Excludes.import_binding,
+                    .excludes = if (self.tree.isTs())
+                        Symbol.Excludes.import_binding
+                    else
+                        Symbol.Excludes.import_binding.merge(Symbol.value_space),
                     .scope = scope.current,
                 };
             },
@@ -1029,7 +1029,7 @@ pub const SymbolTracker = struct {
             .binding_identifier => |id| {
                 const flags = self.pending.flags;
                 // in a type, only type parameters and parameters declare
-                if (ref_ctx.space.inTypePosition() and !flags.type_parameter and !flags.parameter) {
+                if (ref_ctx.type_position and !flags.type_parameter and !flags.parameter) {
                     return;
                 }
 
@@ -1058,6 +1058,7 @@ pub const SymbolTracker = struct {
                 _ = try self.addReference(id.name, scope.current, index, .{
                     .write = ref_ctx.is_write,
                     .space = ref_ctx.space,
+                    .type_position = ref_ctx.type_position,
                 });
             },
             // `v is T` parses `v` as an identifier_name but it references the
@@ -1074,6 +1075,7 @@ pub const SymbolTracker = struct {
                 if (!self.symbol(param).flags.parameter) return;
                 _ = try self.addReference(name, scope.current, pred.parameter_name, .{
                     .space = .typeof,
+                    .type_position = true,
                 });
             },
             // members resolve lexically inside the body like tsc, and their
@@ -1205,7 +1207,7 @@ pub const SymbolTracker = struct {
         node: ast.NodeIndex,
         scopes: []const sc.Scope,
     ) Allocator.Error!SymbolId {
-        const target = if (self.pending.scope == self.global_body) .root else self.pending.scope;
+        const target = self.pendingTarget();
         std.debug.assert(target != .none);
         std.debug.assert(@intFromEnum(target) < self.scope_maps.items.len);
         std.debug.assert(node != .null);
@@ -1213,26 +1215,17 @@ pub const SymbolTracker = struct {
         const name_str = self.tree.string(name);
         const target_idx = @intFromEnum(target);
 
-        const is_import = self.pending.flags.intersects(Symbol.any_import);
-        const export_context = target_idx < self.export_contexts.items.len and
-            self.export_contexts.items[target_idx];
-        const exported = self.export_state != .none or (export_context and !is_import);
+        const exported = self.pendingExported(target);
         // an export merges across the bodies of its namespace
         const own = self.binding(target, name_str);
-        const shared = if (own == null and exported and self.shares_members)
-            self.bodies(scopes).sharedMember(target, name_str, .any)
-        else
-            null;
+        const shared = if (own == null) self.sharedExport(target, name_str, scopes) else null;
         if (shared) |existing| {
             try self.scope_maps.items[target_idx].put(self.allocator, name_str, existing);
         }
 
         const id = if (own orelse shared) |existing| sid: {
             const sym = &self.symbols.items[@intFromEnum(existing)];
-            // an ambient class and function merge
-            var excludes = self.pending.excludes;
-            if (sym.flags.ambient or self.pending.flags.ambient) excludes.function = false;
-            if (!sym.flags.intersects(excludes)) {
+            if (!conflicts(self.pending, sym.flags)) {
                 var merged = sym.flags.merge(self.pending.flags);
                 merged.exported = merged.exported or exported;
                 merged.is_default = merged.is_default or self.export_state == .default;
@@ -1260,6 +1253,28 @@ pub const SymbolTracker = struct {
 
         try self.decl_pairs.append(self.allocator, .{ .sid = id, .node = node });
         return id;
+    }
+
+    fn pendingTarget(self: *const SymbolTracker) sc.ScopeId {
+        return if (self.pending.scope == self.global_body) .root else self.pending.scope;
+    }
+
+    fn pendingExported(self: *const SymbolTracker, target: sc.ScopeId) bool {
+        const target_idx = @intFromEnum(target);
+        const is_import = self.pending.flags.intersects(Symbol.any_import);
+        const export_context = target_idx < self.export_contexts.items.len and
+            self.export_contexts.items[target_idx];
+        return self.export_state != .none or (export_context and !is_import);
+    }
+
+    fn sharedExport(
+        self: *const SymbolTracker,
+        target: sc.ScopeId,
+        name: []const u8,
+        scopes: []const sc.Scope,
+    ) ?SymbolId {
+        if (!self.shares_members or !self.pendingExported(target)) return null;
+        return self.bodies(scopes).sharedMember(target, name, .any);
     }
 
     /// Records an identifier reference at `node` in `scope`.
@@ -1503,6 +1518,22 @@ pub const SymbolTracker = struct {
     }
 };
 
+/// The symbol the pending declaration of `name` merges into, the scope's own binding or an
+/// export another body of its namespace shares.
+pub fn prior(tracker: *const SymbolTracker, name: []const u8, scopes: []const sc.Scope) ?SymbolId {
+    const target = tracker.pendingTarget();
+    return tracker.binding(target, name) orelse tracker.sharedExport(target, name, scopes);
+}
+
+/// Whether `pending` cannot merge into a symbol with `flags`.
+pub fn conflicts(pending: SymbolTracker.PendingBinding, flags: Symbol.Flags) bool {
+    var excludes = pending.excludes;
+    // a class and a function merge only when the class is ambient
+    if (pending.flags.class and pending.flags.ambient) excludes.function = false;
+    if (pending.flags.function and flags.class and flags.ambient) excludes.class = false;
+    return flags.intersects(excludes);
+}
+
 // infer variables exist only in their conditional's true branch, class type
 // parameters are hidden in static members (TS2302) and computed keys (TS2467)
 fn visibleAt(
@@ -1524,7 +1555,7 @@ fn visibleAt(
             else => true,
         };
     }
-    if (!ref.flags.space.inTypePosition()) return true;
+    if (!ref.flags.type_position) return true;
     if (sym.flags.parameter) {
         const type_parameters = typeParametersOf(tree, scopes.get(sym.scope).node);
         if (type_parameters == .null) return true;
@@ -1754,7 +1785,7 @@ pub fn exportsImplicitly(tree: *const ast.Tree) bool {
     return hasModuleSyntax(tree, body) and !hasExportStatement(tree, body);
 }
 
-fn hasModuleSyntax(tree: *const ast.Tree, statements: []const ast.NodeIndex) bool {
+pub fn hasModuleSyntax(tree: *const ast.Tree, statements: []const ast.NodeIndex) bool {
     for (statements) |stmt| {
         switch (tree.data(stmt)) {
             .import_declaration,

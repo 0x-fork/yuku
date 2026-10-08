@@ -81,7 +81,7 @@ pub const PackedImport = extern struct {
     specifier_start: u32,
     specifier_end: u32,
     node: u32,
-    reserved: u32 = 0,
+    scope: u32,
 };
 
 /// `bits` packs kind (bits 0-2) and type_only (bit 3).
@@ -110,6 +110,7 @@ pub const SCOPE_STRICT_BIT: u5 = 8;
 pub const REFERENCE_WRITE_BIT: u5 = 0;
 pub const REFERENCE_SPACE_SHIFT: u5 = 1;
 pub const REFERENCE_SPACE_MASK: u32 = 0b111;
+pub const REFERENCE_TYPE_POSITION_BIT: u5 = 4;
 pub const IMPORT_KIND_MASK: u32 = 0b111;
 pub const IMPORT_TYPE_BIT: u5 = 3;
 pub const IMPORT_HAS_PHASE_BIT: u5 = 4;
@@ -153,6 +154,9 @@ comptime {
     std.debug.assert(@bitSizeOf(Reference.Flags) == 8);
     std.debug.assert(@bitOffsetOf(Reference.Flags, "write") == REFERENCE_WRITE_BIT);
     std.debug.assert(@bitOffsetOf(Reference.Flags, "space") == REFERENCE_SPACE_SHIFT);
+    std.debug.assert(
+        @bitOffsetOf(Reference.Flags, "type_position") == REFERENCE_TYPE_POSITION_BIT,
+    );
     std.debug.assert(@intFromEnum(Reference.Space.value) == 0);
     std.debug.assert(@intFromEnum(Reference.Space.type) == 1);
     std.debug.assert(@intFromEnum(Reference.Space.namespace) == 2);
@@ -177,6 +181,7 @@ comptime {
     std.debug.assert(@intFromEnum(module_record.Import.Kind.import_equals) == 3);
     std.debug.assert(@intFromEnum(module_record.Import.Kind.dynamic) == 4);
     std.debug.assert(@intFromEnum(module_record.Import.Kind.require) == 5);
+    std.debug.assert(@intFromEnum(module_record.Import.Kind.augmentation) == 6);
     std.debug.assert(@intFromEnum(module_record.Export.Kind.named) == 0);
     std.debug.assert(@intFromEnum(module_record.Export.Kind.re_export) == 1);
     std.debug.assert(@intFromEnum(module_record.Export.Kind.namespace) == 2);
@@ -300,6 +305,7 @@ pub fn serializeInto(
             .specifier_start = record.specifier.start,
             .specifier_end = record.specifier.end,
             .node = @intFromEnum(record.node),
+            .scope = @intFromEnum(record.scope),
         };
         @memcpy(buf[pos..][0..IMPORT_SIZE], std.mem.asBytes(&entry));
         pos += IMPORT_SIZE;

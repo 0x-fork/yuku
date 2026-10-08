@@ -25,13 +25,17 @@ export function corpusPresent(): boolean {
   return CORPUS_DIRS.some((dir) => existsSync(dir));
 }
 
-/** Every corpus file under one directory, sorted by path for stable order. */
+/** Every corpus file under one directory, sorted by path, in the goal its name gives. */
 export function corpusFilesUnder(dir: string): CorpusFile[] {
+  return filesUnder(dir, (path) => (path.includes(".module.") ? "module" : "script"));
+}
+
+function filesUnder(dir: string, sourceTypeOf: (path: string) => SourceType): CorpusFile[] {
   if (!existsSync(dir)) return [];
   const files: CorpusFile[] = [];
   for (const relative of new Glob(CORPUS_GLOB).scanSync({ cwd: dir })) {
     const path = join(dir, relative);
-    files.push({ path, relative, lang: langFromPath(path), sourceType: sourceTypeFromPath(path) });
+    files.push({ path, relative, lang: langFromPath(path), sourceType: sourceTypeOf(path) });
   }
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return files;
@@ -57,7 +61,7 @@ export function loadedProjects(): LoadedProject[] {
     if (!existsSync(root)) continue;
     const excluded = (project.exclude ?? []).map((path) => join(root, path) + sep);
     const files = project.sources
-      .flatMap((source) => corpusFilesUnder(join(root, source)))
+      .flatMap((source) => filesUnder(join(root, source), sourceTypeFromPath))
       .filter((file) => !excluded.some((path) => file.path.startsWith(path)));
     loaded.push({ project, root, files });
   }
@@ -70,13 +74,13 @@ export function projectFiles(): CorpusFile[] {
 }
 
 /**
- * Runs `fn` over every corpus file, reading sources in batches so thousands of
- * files do not open at once.
+ * Runs `fn` over `files`, every corpus file by default, reading sources in batches so
+ * thousands of files do not open at once.
  */
 export async function forEachCorpusFile(
   fn: (file: CorpusFile, source: string) => void,
+  files: CorpusFile[] = corpusFiles(),
 ): Promise<void> {
-  const files = corpusFiles();
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batch = files.slice(i, i + BATCH_SIZE);
     await Promise.all(batch.map(async (file) => fn(file, await Bun.file(file.path).text())));

@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import ts from "typescript";
 import { analyze } from "yuku-analyzer";
-import type { SourceLang } from "yuku-parser";
+import type { SourceLang, SourceType } from "yuku-parser";
 import { corpusFiles, projectFiles, type CorpusFile } from "../corpus";
 import { differential, type Comparison, type Known } from "./utils/differential";
 
@@ -28,12 +28,32 @@ interface Checker {
   resolve(position: number): number[] | null;
   /** Whether tsc reports an error naming `name` at a position. */
   rejects(name: string, positions: number[]): boolean;
+  resolvedUses(): [position: number, name: string][];
 }
 
-function checker(source: string, lang: SourceLang): Checker {
+const { getSetExternalModuleIndicator } = ts as unknown as {
+  getSetExternalModuleIndicator(options: ts.CompilerOptions): (file: ts.SourceFile) => void;
+};
+
+function checker(source: string, lang: SourceLang, sourceType: SourceType): Checker {
   const fileName = FILE_NAMES[lang];
-  const kind = SCRIPT_KINDS[lang];
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.ESNext, true, kind);
+  const options: ts.CompilerOptions = {
+    noLib: true,
+    noResolve: true,
+    allowJs: true,
+    moduleDetection:
+      sourceType === "module" ? ts.ModuleDetectionKind.Force : ts.ModuleDetectionKind.Legacy,
+  };
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    {
+      languageVersion: ts.ScriptTarget.ESNext,
+      setExternalModuleIndicator: getSetExternalModuleIndicator(options),
+    },
+    true,
+    SCRIPT_KINDS[lang],
+  );
   const host: ts.CompilerHost = {
     getSourceFile: (name) => (name === fileName ? file : undefined),
     getDefaultLibFileName: () => "lib.d.ts",
@@ -45,7 +65,6 @@ function checker(source: string, lang: SourceLang): Checker {
     fileExists: (name) => name === fileName,
     readFile: () => undefined,
   };
-  const options = { noLib: true, noResolve: true, allowJs: true };
   const program = ts.createProgram([fileName], options, host);
   const typeChecker = program.getTypeChecker();
 
@@ -81,6 +100,20 @@ function checker(source: string, lang: SourceLang): Checker {
         return positions.some((position) => position >= start && position < start + length);
       });
     },
+    resolvedUses() {
+      const uses: [position: number, name: string][] = [];
+      for (const [position, node] of identifiers) {
+        if (!isScopeLookup(node)) continue;
+        const local = (symbolOf(typeChecker, node)?.declarations ?? []).filter(
+          (declaration) =>
+            !isAssignmentDeclaration(declaration) &&
+            ts.getNameOfDeclaration(declaration)?.getSourceFile() === file,
+        );
+        if (local.some((declaration) => ts.getNameOfDeclaration(declaration) === node)) continue;
+        if (local.length > 0) uses.push([position, node.text]);
+      }
+      return uses;
+    },
   };
 }
 
@@ -111,6 +144,46 @@ function isAssignmentDeclaration(declaration: ts.Declaration): boolean {
   );
 }
 
+function isScopeLookup(node: ts.Identifier): boolean {
+  if (node.text === "this" || insideWith(node)) return false;
+  let entity: ts.Node = node;
+  while (ts.isQualifiedName(entity.parent) && entity.parent.left === entity) entity = entity.parent;
+  if (ts.isImportTypeNode(entity.parent) && entity.parent.qualifier === entity) return false;
+  const parent = node.parent;
+  if (ts.isPropertyAccessExpression(parent)) return parent.name !== node;
+  if (ts.isQualifiedName(parent)) return parent.right !== node;
+  if (ts.isBindingElement(parent) || ts.isImportSpecifier(parent)) {
+    return parent.propertyName !== node;
+  }
+  if (ts.isExportSpecifier(parent)) {
+    if (parent.parent.parent.moduleSpecifier !== undefined) return false;
+    return parent.propertyName === undefined || parent.propertyName === node;
+  }
+  if (ts.isJsxOpeningLikeElement(parent) || ts.isJsxClosingElement(parent)) {
+    return parent.tagName !== node || !/^[a-z]|-/.test(node.text);
+  }
+  if (
+    ts.isPropertyAssignment(parent) ||
+    ts.isPropertyDeclaration(parent) ||
+    ts.isPropertySignature(parent) ||
+    ts.isMethodDeclaration(parent) ||
+    ts.isMethodSignature(parent) ||
+    ts.isAccessor(parent) ||
+    ts.isEnumMember(parent)
+  ) {
+    return parent.name !== node;
+  }
+  return !(
+    ts.isLabeledStatement(parent) ||
+    ts.isBreakOrContinueStatement(parent) ||
+    ts.isMetaProperty(parent) ||
+    ts.isNamespaceExportDeclaration(parent) ||
+    ts.isJsxNamespacedName(parent) ||
+    ts.isJsxAttribute(parent) ||
+    ts.isImportAttribute(parent)
+  );
+}
+
 function insideWith(node: ts.Node): boolean {
   for (let current = node; current.parent !== undefined; current = current.parent) {
     if (ts.isWithStatement(current.parent) && current.parent.statement === current) return true;
@@ -135,9 +208,14 @@ function inClassExtends(node: ts.Identifier): boolean {
   );
 }
 
-function compare(source: string, lang: SourceLang, path = FILE_NAMES[lang]): Comparison {
-  const module = analyze(source, { path, lang });
-  const tsc = checker(source, lang);
+function compare(
+  source: string,
+  lang: SourceLang,
+  sourceType: SourceType = "module",
+  path = FILE_NAMES[lang],
+): Comparison {
+  const module = analyze(source, { path, lang, sourceType });
+  const tsc = checker(source, lang, sourceType);
   const mismatches: string[] = [];
   let compared = 0;
   for (const reference of module.references) {
@@ -152,19 +230,27 @@ function compare(source: string, lang: SourceLang, path = FILE_NAMES[lang]): Com
     const expected = theirs.join(",") || "unresolved";
     mismatches.push(`${reference.name}@${position}: yuku ${yuku}, tsc ${expected}`);
   }
+  const recorded = new Set([
+    ...module.references.map((reference) => reference.node.start),
+    ...module.bindings.flatMap((binding) => binding.declarations.map((node) => node.start)),
+  ]);
+  for (const [position, name] of tsc.resolvedUses()) {
+    compared++;
+    if (!recorded.has(position)) mismatches.push(`${name}@${position}: no yuku reference`);
+  }
   return { compared, mismatches };
 }
 
 function compareFile(file: CorpusFile, source: string): Comparison {
-  return compare(source, file.lang, file.path);
+  return compare(source, file.lang, file.sourceType, file.path);
 }
 
 const SUITE = "test/parser/suite/ts/pass";
 
 const KNOWN: Known = {
-  "tsc parses `A extends (x: B extends C ? D : E) => 0 ? F : G` differently": [
-    `${SUITE}/7abadbdb73780802.ts`,
-  ],
+  "tsc parses `A extends (x: B extends C ? D : E) => 0 ? F : G` differently": {
+    [`${SUITE}/7abadbdb73780802.ts`]: ["D@42: yuku unresolved, tsc 42"],
+  },
 };
 
 const SNIPPETS: [name: string, source: string, lang?: SourceLang][] = [

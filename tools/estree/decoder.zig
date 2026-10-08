@@ -100,14 +100,13 @@ fn writeSemanticConstants(w: *Writer) !void {
     });
     try writeArray(w, "IMPORT_PHASES", &.{ "source", "defer" });
     try writeArray(w, "IMPORT_KINDS", &.{
-        "named", "namespace", "sideEffect", "importEquals", "dynamic", "require",
+        "named", "namespace", "sideEffect", "importEquals", "dynamic", "require", "augmentation",
     });
     try writeArray(w, "EXPORT_KINDS", &.{
         "named", "reExport", "namespace", "star", "equals", "global",
     });
 
-    // one entry per Reference.Space value, in enum order, plus the
-    // mirrored Space.inTypePosition lookup
+    // one entry per Reference.Space value, in enum order
     const space_fields = @typeInfo(Reference.Space).@"enum".fields;
     const space_names = comptime blk: {
         var names: [space_fields.len][]const u8 = undefined;
@@ -115,15 +114,6 @@ fn writeSemanticConstants(w: *Writer) !void {
         break :blk names;
     };
     try writeArray(w, "REFERENCE_SPACES", &space_names);
-    const space_type_position = comptime blk: {
-        var vals: [space_fields.len][]const u8 = undefined;
-        for (space_fields, 0..) |field, i| {
-            const space = @field(Reference.Space, field.name);
-            vals[i] = if (space.inTypePosition()) "true" else "false";
-        }
-        break :blk vals;
-    };
-    try writeArrayRaw(w, "REFERENCE_TYPE_POSITION", &space_type_position);
 
     try w.writeAll("const BindingFlags = Object.freeze({\n");
     inline for (@typeInfo(Symbol.Flags).@"struct".fields) |field| {
@@ -776,7 +766,7 @@ fn isIdentChar(c: u8) bool {
 // whole-identifier match, so a slot name never matches inside a longer identifier
 fn usesIdent(body: []const u8, name: []const u8) bool {
     var i: usize = 0;
-    while (std.mem.indexOfPos(u8, body, i, name)) |p| : (i = p + 1) {
+    while (std.mem.findPos(u8, body, i, name)) |p| : (i = p + 1) {
         const before_ok = p == 0 or !isIdentChar(body[p - 1]);
         const after = p + name.len;
         const after_ok = after >= body.len or !isIdentChar(body[after]);
@@ -828,13 +818,13 @@ fn writeChildCallsWithDepth(w: *Writer, body: []const u8) !void {
     const calls = [_][]const u8{ "node", "nodeArr", "nodeArrHoles", "fnParams" };
     var written: usize = 0;
     var open: usize = 0;
-    while (std.mem.indexOfScalarPos(u8, body, open, '(')) |paren| : (open = paren + 1) {
+    while (std.mem.findScalarPos(u8, body, open, '(')) |paren| : (open = paren + 1) {
         var name_start = paren;
         while (name_start > 0 and isIdentChar(body[name_start - 1])) name_start -= 1;
         for (calls) |call| {
             if (!std.mem.eql(u8, body[name_start..paren], call)) continue;
-            const close = std.mem.indexOfScalarPos(u8, body, paren, ')').?;
-            std.debug.assert(std.mem.indexOfScalar(u8, body[paren + 1 .. close], '(') == null);
+            const close = std.mem.findScalarPos(u8, body, paren, ')').?;
+            std.debug.assert(std.mem.findScalar(u8, body[paren + 1 .. close], '(') == null);
             try w.print("{s}, depth + 1", .{body[written..close]});
             written = close;
         }
@@ -1284,11 +1274,12 @@ fn writeSpecialCase(w: *Writer, comptime name: []const u8) !void {
         , .{ sp, sp + 1, sr, sr, sdec, sdec + 1, mo, sta, sta });
     } else if (comptime eql(u8, name, "jsx_text")) {
         const sv = comptime slotOf(ast.JSXText, "value");
+        const sr = comptime slotOf(ast.JSXText, "raw");
         try emit(w,
             \\
-            \\      const t = str(f{d}, f{d});
-            \\      return {{ type: "JSXText", start, end, value: t, raw: t }};
-        , .{ sv, sv + 1 });
+            \\      const value = str(f{d}, f{d});
+            \\      return {{ type: "JSXText", start, end, value, raw: str(f{d}, f{d}) }};
+        , .{ sv, sv + 1, sr, sr + 1 });
     } else if (comptime eql(u8, name, "ts_function_type")) {
         const stp = comptime slotOf(ast.TSFunctionType, "type_parameters");
         const sp = comptime slotOf(ast.TSFunctionType, "params");
@@ -1696,8 +1687,7 @@ fn writeSemanticAccessors(w: *Writer) !void {
         \\        node: (i) => node({[n]s}),
         \\        nodeIndex: (i) => {[n]s},
         \\        space: (i) => REFERENCE_SPACES[({[bits]s} >> {[sshift]d}) & {[smask]d}],
-        \\        inTypePosition: (i) =>
-        \\          REFERENCE_TYPE_POSITION[({[bits]s} >> {[sshift]d}) & {[smask]d}],
+        \\        inTypePosition: (i) => (({[bits]s} >> {[pbit]d}) & 1) !== 0,
         \\        isWrite: (i) => (({[bits]s} >> {[wbit]d}) & 1) !== 0,
         \\        symbolId: (i) => _id({[sym]s}),
         \\        start: (i) => startOf({[n]s}),
@@ -1711,6 +1701,7 @@ fn writeSemanticAccessors(w: *Writer) !void {
         .bits = comptime cell("references", Ref, "bits"),
         .sshift = sem_rt.REFERENCE_SPACE_SHIFT,
         .smask = sem_rt.REFERENCE_SPACE_MASK,
+        .pbit = sem_rt.REFERENCE_TYPE_POSITION_BIT,
         .wbit = sem_rt.REFERENCE_WRITE_BIT,
         .sym = comptime cell("references", Ref, "symbol"),
     });
@@ -1727,6 +1718,7 @@ fn writeSemanticAccessors(w: *Writer) !void {
         \\            ? IMPORT_PHASES[({[bits]s} >> {[pbit]d}) & 1]
         \\            : null,
         \\        node: (i) => node({[n]s}),
+        \\        scopeId: (i) => _id({[scope]s}),
         \\      }},
         \\
     , .{
@@ -1739,6 +1731,7 @@ fn writeSemanticAccessors(w: *Writer) !void {
         .hpbit = sem_rt.IMPORT_HAS_PHASE_BIT,
         .pbit = sem_rt.IMPORT_PHASE_BIT,
         .n = comptime cell("imports", Imp, "node"),
+        .scope = comptime cell("imports", Imp, "scope"),
     });
     try w.print(
         \\      export: {{
