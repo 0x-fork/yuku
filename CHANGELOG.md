@@ -2,6 +2,16 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.18.1
+
+### Changes
+
+- parser: join a surrogate pair in a string however it is written (#239 by @arshad-yaseen)
+- parser: span a type predicate's type without its stripped parentheses (#239 by @arshad-yaseen)
+- codegen: print every attached comment (#238 by @arshad-yaseen)
+- codegen: strip an uninitialized `const` as ambient (#239 by @arshad-yaseen)
+- codegen: reprint a hashbang verbatim (#239 by @arshad-yaseen)
+
 ## 0.18.0
 
 ### Breaking
