@@ -8,6 +8,7 @@ const util = @import("util");
 
 const statements = @import("syntax/statements.zig");
 const grammar = @import("grammar.zig");
+const dialect = @import("dialect.zig");
 const comments = @import("comments.zig");
 
 /// How comments are collected. Not at all, as a flat list, attached to host nodes, or both.
@@ -39,6 +40,8 @@ pub const Options = struct {
     comments: CommentMode = .flat,
     /// Whether to keep every consumed token in `Tree.tokens`.
     tokens: bool = false,
+    /// Whether the dialect compiled into the parser reads this source.
+    dialect: bool = false,
 };
 
 pub const Context = packed struct {
@@ -86,6 +89,7 @@ pub const Parser = struct {
     preserve_parens: bool,
     comment_mode: CommentMode,
     collect_tokens: bool,
+    dialect: bool,
     lexer: lexer.Lexer,
     diagnostics: std.ArrayList(ast.Diagnostic) = .empty,
     // the tokens the committed parse advanced past, `current_token` is never in it
@@ -110,6 +114,7 @@ pub const Parser = struct {
     ts_rejected_speculations: std.AutoHashMapUnmanaged(u32, void) = .empty,
 
     pub fn init(child_allocator: std.mem.Allocator, source: []const u8, options: Options) Parser {
+        if (options.dialect) std.debug.assert(dialect.bound);
         var tree = ast.Tree.init(child_allocator, source);
         tree.source_type = options.source_type;
         tree.lang = options.lang;
@@ -121,6 +126,7 @@ pub const Parser = struct {
             .preserve_parens = options.preserve_parens,
             .comment_mode = options.comments,
             .collect_tokens = options.tokens,
+            .dialect = options.dialect,
             .lexer = undefined,
             .current_token = Token.eof(0),
         };
@@ -165,8 +171,6 @@ pub const Parser = struct {
         std.debug.assert(self.current_token.tag == .eof);
         try self.commitEof();
 
-        const end = self.current_token.span.end;
-
         self.tree.root = try self.tree.addNode(
             .{
                 .program = .{
@@ -177,24 +181,15 @@ pub const Parser = struct {
                     } else null,
                 },
             },
-            .{ .start = 0, .end = end },
+            .{ .start = 0, .end = self.current_token.span.end },
         );
 
         self.tree.diagnostics = self.diagnostics;
-
-        if (!self.preserve_parens) {
-            stripParenthesizedNodes(&self.tree);
-        }
-
-        if (self.comment_mode.attaches()) {
-            try comments.attach(&self.tree, self.lexer.comments.items);
-        }
-        if (self.comment_mode.isFlat()) {
-            self.tree.comments = self.lexer.comments.items;
-        }
-        if (self.collect_tokens) {
-            self.tree.tokens = self.tokens.items;
-        }
+        if (!self.preserve_parens) stripParenthesizedNodes(&self.tree);
+        const raw_comments = self.lexer.comments.items;
+        if (self.comment_mode.attaches()) try comments.attach(&self.tree, raw_comments);
+        if (self.comment_mode.isFlat()) self.tree.comments = raw_comments;
+        if (self.collect_tokens) self.tree.tokens = self.tokens.items;
     }
 
     inline fn commitToken(self: *Parser, token: Token) Error!void {
@@ -224,7 +219,6 @@ pub const Parser = struct {
     pub fn parseBody(self: *Parser, terminator: ?TokenTag, kind: BodyKind) Error!ast.IndexRange {
         self.context.directive_prologue =
             kind == .program or kind == .function or kind == .module_block;
-
         defer self.context.directive_prologue = false;
 
         const statements_checkpoint = self.scratch_statements.begin();
@@ -314,19 +308,7 @@ pub const Parser = struct {
         scratch: *ScratchBuffer,
         scratch_checkpoint: usize,
     ) Error!ast.IndexRange {
-        const start: u32 = @intCast(self.tree.extras.items.len);
-        const slice = scratch.items.items[scratch_checkpoint..];
-        const len: u32 = @intCast(slice.len);
-
-        if (slice.len > 0) {
-            if (self.tree.extras.items.len + slice.len <= self.tree.extras.capacity) {
-                self.tree.extras.appendSliceAssumeCapacity(slice);
-            } else {
-                try self.tree.extras.appendSlice(self.allocator(), slice);
-            }
-        }
-
-        return .{ .start = start, .len = len };
+        return self.tree.addExtra(scratch.items.items[scratch_checkpoint..]);
     }
 
     pub inline fn spanText(self: *const Parser, span: ast.Span) []const u8 {
@@ -370,20 +352,14 @@ pub const Parser = struct {
     }
 
     pub inline fn checkEscapedKeyword(self: *Parser) Error!void {
-        const current_token = self.current_token;
-
-        if (!current_token.isEscaped()) return;
-
-        if (current_token.tag.isKeyword()) {
-            try self.reportEscapedKeyword(current_token.span);
-        }
+        const token = self.current_token;
+        if (!token.isEscaped()) return;
+        if (token.tag.isKeyword()) try self.reportEscapedKeyword(token.span);
     }
 
     pub noinline fn reportEscapedKeyword(self: *Parser, span: ast.Span) Error!void {
         @branchHint(.cold);
-        try self.diagnostics.append(self.allocator(), .{
-            .message = "Keywords cannot contain escape characters",
-            .span = span,
+        try self.report(span, "Keywords cannot contain escape characters", .{
             .help = "Remove the escape characters",
         });
     }
@@ -444,8 +420,7 @@ pub const Parser = struct {
         comments_len: usize,
 
         pub inline fn next(self: *Peek) Token {
-            // the inline fast path covers idents and simple punctuation,
-            // which is most of what multi-token lookahead fetches
+            // lookahead mostly fetches identifiers and simple punctuation
             var token: Token = undefined;
             if (self.parser.lexer.tryNextToken(&token)) return token;
             return self.parser.lexer.nextToken() catch
@@ -504,9 +479,7 @@ pub const Parser = struct {
             try self.advance() orelse return false;
             return true;
         }
-
         try self.reportExpected(self.current_token.span, message, .{ .help = help });
-
         return false;
     }
 
@@ -515,18 +488,14 @@ pub const Parser = struct {
             const semicolon_end = self.current_token.span.end;
             try self.advance() orelse return null;
             return semicolon_end;
-        } else {
-            if (!self.canInsertImplicitSemicolon(self.current_token)) {
-                try self.reportExpected(
-                    self.current_token.span,
-                    "Expected a semicolon or an implicit semicolon after a statement",
-                    .{ .help = "Try inserting a semicolon here" },
-                );
-                return null;
-            }
         }
-
-        return end;
+        if (self.canInsertImplicitSemicolon(self.current_token)) return end;
+        try self.reportExpected(
+            self.current_token.span,
+            "Expected a semicolon or an implicit semicolon after a statement",
+            .{ .help = "Try inserting a semicolon here" },
+        );
+        return null;
     }
 
     /// Consumes an optional semicolon. ASI always inserts one after the `)` of `do-while`.
@@ -636,13 +605,11 @@ pub const Parser = struct {
         while (true) {
             return self.lexer.nextToken() catch |e| {
                 if (e == error.OutOfMemory) return error.OutOfMemory;
-
                 if (self.lexer.cursor < self.source.len) {
                     self.lexer.cursor += 1;
                 } else {
                     return Token.eof(@intCast(self.source.len));
                 }
-
                 continue;
             };
         }

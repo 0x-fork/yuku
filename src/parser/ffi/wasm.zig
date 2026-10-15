@@ -1,9 +1,4 @@
-//! The freestanding WebAssembly core of `@yuku-core/wasm`, with no host imports.
-//!
-//!   alloc(len)               -> ptr   buffer for the source bytes
-//!   parse(ptr, len, flags)   -> ptr   length-prefixed AST buffer `[u32 N][N bytes]`, or 0
-//!   analyze(ptr, len, flags) -> ptr   length-prefixed analyzer buffer, or 0
-//!   free(ptr, len)           -> void
+// the JavaScript instantiates this module with no imports
 
 const std = @import("std");
 const parser = @import("parser");
@@ -11,7 +6,7 @@ const transfer = @import("transfer/root.zig");
 
 const gpa = std.heap.wasm_allocator;
 
-// packed by `@yuku-core/wasm`
+// packed by packages/yuku/core/wasm.ts
 const flag = struct {
     const source_type_mask = 0b11;
     const lang_shift = 2;
@@ -19,6 +14,7 @@ const flag = struct {
     const semantic_errors = 1 << 6;
     const attach_comments = 1 << 7;
     const tokens = 1 << 8;
+    const dialect = 1 << 9;
 };
 
 export fn alloc(len: usize) [*]u8 {
@@ -39,11 +35,25 @@ export fn analyze(ptr: [*]const u8, len: usize, flags: u32) usize {
     return @intFromPtr(out.ptr);
 }
 
+// static, so the host reads it without freeing
+export fn dialect() usize {
+    if (!parser.dialect.bound) return 0;
+    return @intFromPtr(&description);
+}
+
+const description = blk: {
+    const json = parser.dialect.description;
+    var bytes: [4 + json.len]u8 = undefined;
+    std.mem.writeInt(u32, bytes[0..4], json.len, .little);
+    @memcpy(bytes[4..], json);
+    break :blk bytes;
+};
+
 fn parseBuffer(source: []const u8, flags: u32) ![]u8 {
     var tree = try parseTree(source, flags);
     defer tree.deinit();
 
-    if (flags & flag.semantic_errors != 0) _ = parser.semantic.analyze(&tree) catch {};
+    if (flags & flag.semantic_errors != 0) try parser.semantic.check(&tree);
 
     const out = try prefixed(transfer.bufferSize(&tree));
     _ = transfer.serializeInto(&tree, out[4..]);
@@ -70,6 +80,7 @@ fn parseTree(source: []const u8, flags: u32) !parser.ast.Tree {
         .preserve_parens = flags & flag.preserve_parens != 0,
         .comments = if (flags & flag.attach_comments != 0) .both else .flat,
         .tokens = flags & flag.tokens != 0,
+        .dialect = flags & flag.dialect != 0,
     });
 }
 

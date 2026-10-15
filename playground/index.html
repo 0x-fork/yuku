@@ -9,27 +9,24 @@
       document.documentElement.dataset.theme = localStorage.getItem("yuku-theme") || "dark";
     </script>
     <script>
-      // released packages, a commit's preview packages with `?pr=<commit>`, or the
-      // workspace builds under `bun playground`
-      const pr = (new URLSearchParams(location.search).get("pr") ?? "").match(/^[0-9a-f]{7,40}$/)?.[0];
+      const pr = new URLSearchParams(location.search).get("pr")?.match(/^[0-9a-f]{7,40}$/)?.[0];
       const local = !pr && ["localhost", "127.0.0.1"].includes(location.hostname);
-      const packages = {
-        "yuku-parser": "yuku-parser/index.js",
-        "yuku-codegen": "yuku-codegen/dist/index.js",
-        "yuku-analyzer": "yuku-analyzer/index.js",
-        "yuku-ast": "yuku-ast/dist/index.js",
-        "yuku-core": "yuku-core/browser.js",
-        "@yuku-core/wasm": "yuku-core-wasm/index.js",
+      const parts = {
+        "": "dist/index.js",
+        "/analyzer": "dist/analyzer.js",
+        "/codegen": "dist/codegen.js",
       };
-      // the packages import each other through this map, so all of them come from one source
-      const external = `?external=${Object.keys(packages).join(",")}`;
       const imports = {};
-      for (const [name, path] of Object.entries(packages)) {
-        imports[name] = local
+      for (const [subpath, path] of Object.entries(parts)) {
+        imports[`yuku${subpath}`] = local
           ? `/pkg/${path}`
-          : pr ? `https://esm.sh/pr/yuku-toolchain/yuku/${name}@${pr}${external}` : `https://esm.sh/${name}${external}`;
+          : pr
+            ? `https://esm.sh/pr/yuku-toolchain/yuku/yuku@${pr}${subpath}`
+            : `https://esm.sh/yuku${subpath}`;
       }
-      document.write(`<script type="importmap">${JSON.stringify({ imports })}<\/script>`);
+
+      const scopes = local ? { "/pkg/": { "#module": "/pkg/dist/module/inline.js" } } : {};
+      document.write(`<script type="importmap">${JSON.stringify({ imports, scopes })}<\/script>`);
     </script>
   </head>
   <body>
@@ -54,9 +51,9 @@
             <option value="commonjs">commonjs</option>
           </select>
         </label>
-        <label class="chk"><input type="checkbox" id="preserveParens" checked /> preserveParens</label>
-        <label class="chk"><input type="checkbox" id="semanticErrors" /> semanticErrors</label>
-        <label class="chk"><input type="checkbox" id="attachComments" /> attachComments</label>
+        <label><input type="checkbox" id="preserveParens" checked /> preserveParens</label>
+        <label><input type="checkbox" id="semanticErrors" /> semanticErrors</label>
+        <label><input type="checkbox" id="attachComments" /> attachComments</label>
       </div>
       <button id="theme" class="theme">dark</button>
     </header>
@@ -82,8 +79,12 @@
         <div class="pane-head">
           output
           <div class="opts">
-            <label class="chk" title="drop TypeScript-only syntax"><input type="checkbox" id="strip" /> strip</label>
-            <label class="chk" title="size-reducing syntax rewrites"><input type="checkbox" id="minify" /> minify</label>
+            <label title="drop TypeScript-only syntax">
+              <input type="checkbox" id="strip" /> strip
+            </label>
+            <label title="size-reducing syntax rewrites">
+              <input type="checkbox" id="minify" /> minify
+            </label>
             <select id="format" title="format">
               <option>pretty</option>
               <option>compact</option>
