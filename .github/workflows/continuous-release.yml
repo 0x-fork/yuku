@@ -8,7 +8,9 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # a pull request needs only its newest preview. every commit on main keeps its own
+  # because the issues it resolves link to it
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 env:
@@ -22,6 +24,8 @@ jobs:
     permissions:
       pull-requests: write
       deployments: read
+    outputs:
+      package-url: ${{ steps.package.outputs.url }}
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -55,6 +59,12 @@ jobs:
       - name: Publish the preview package
         run: bun run pkg-pr-new publish --compact --comment=off --json preview-packages.json ./packages/yuku
 
+      - name: Read the preview package URL
+        id: package
+        run: |
+          url=$(jq --raw-output '.packages[] | select(.name == "yuku").url' preview-packages.json)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
       - name: Comment the preview package
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         env:
@@ -63,3 +73,33 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           METADATA_PATH: preview-packages.json
         run: bun .github/scripts/comment-preview-packages.ts
+
+  comment:
+    name: Comment on resolved issues
+    needs: publish
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.0"
+          no-cache: true
+
+      - name: Comment the preview package on resolved issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_URL: ${{ needs.publish.outputs.package-url }}
+        run: bun .github/scripts/comment-resolved-issues.ts
