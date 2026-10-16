@@ -468,10 +468,11 @@ pub const Checker = struct {
         ctx: *SemanticCtx,
     ) AnalysisError!Action {
         if (expr.operator == .delete) {
-            var target = unwrapParens(ctx.tree, expr.argument);
+            var target = ecmascript.unwrapParens(ctx.tree, expr.argument);
 
             if (ctx.tree.data(target) == .chain_expression) {
-                target = unwrapParens(ctx.tree, ctx.tree.data(target).chain_expression.expression);
+                const chain = ctx.tree.data(target).chain_expression;
+                target = ecmascript.unwrapParens(ctx.tree, chain.expression);
             }
 
             switch (ctx.tree.data(target)) {
@@ -915,8 +916,8 @@ pub const Checker = struct {
     /// https://tc39.es/ecma262/#sec-class-definitions-static-semantics-early-errors
     ///
     /// A class body has at most one constructor, and declares each private name
-    /// once, except for a getter and setter pair that are both static or both
-    /// non-static.
+    /// once. A getter and setter pair may share a name, and so may a method and
+    /// its TypeScript overload signatures, when all of them are static or none are.
     pub fn enter_class_body(
         self: *Self,
         body: ast.ClassBody,
@@ -952,19 +953,17 @@ pub const Checker = struct {
             }
 
             const name_j = privateElementName(ctx.tree, child_data) orelse continue;
-            const kind_j = privateElementKind(child_data);
+            const kind_j = privateElementKind(ctx.tree, child_data);
 
             for (children[0..j]) |prev| {
                 const prev_data = ctx.tree.data(prev);
                 const name_i = privateElementName(ctx.tree, prev_data) orelse continue;
                 if (!eql(u8, name_i, name_j)) continue;
 
-                const kind_i = privateElementKind(prev_data);
-                const get_set_pair = (kind_i == .getter and kind_j == .setter) or
-                    (kind_i == .setter and kind_j == .getter);
+                const kind_i = privateElementKind(ctx.tree, prev_data);
                 const same_static =
                     privateElementIsStatic(prev_data) == privateElementIsStatic(child_data);
-                if (get_set_pair and same_static) continue;
+                if (privateElementsPair(kind_i, kind_j) and same_static) continue;
 
                 try self.report(
                     ctx.tree.span(child),
@@ -980,7 +979,7 @@ pub const Checker = struct {
         return .proceed;
     }
 
-    const PrivateElementKind = enum { field, method, getter, setter };
+    const PrivateElementKind = enum { field, method, signature, getter, setter };
 
     fn privateElementName(tree: *const ast.Tree, data: ast.NodeData) ?[]const u8 {
         const key = switch (data) {
@@ -993,14 +992,27 @@ pub const Checker = struct {
         };
     }
 
-    fn privateElementKind(data: ast.NodeData) PrivateElementKind {
+    fn privateElementKind(tree: *const ast.Tree, data: ast.NodeData) PrivateElementKind {
         return switch (data) {
             .method_definition => |method| switch (method.kind) {
                 .get => .getter,
                 .set => .setter,
-                else => .method,
+                else => if (tree.data(method.value).function.body == .null)
+                    .signature
+                else
+                    .method,
             },
             else => .field,
+        };
+    }
+
+    fn privateElementsPair(a: PrivateElementKind, b: PrivateElementKind) bool {
+        return switch (a) {
+            .getter => b == .setter,
+            .setter => b == .getter,
+            .signature => b == .signature or b == .method,
+            .method => b == .signature,
+            .field => false,
         };
     }
 
@@ -1160,20 +1172,6 @@ pub const Checker = struct {
         }
     }
 
-    fn unwrapParens(tree: *const ast.Tree, node: ast.NodeIndex) ast.NodeIndex {
-        std.debug.assert(node != .null);
-        var current = node;
-        // at most one paren node per syntactic level, so nesting depth bounds the chain
-        var depth: u32 = 0;
-        while (true) : (depth += 1) {
-            std.debug.assert(depth < 1_000_000);
-            switch (tree.data(current)) {
-                .parenthesized_expression => |p| current = p.expression,
-                else => return current,
-            }
-        }
-    }
-
     fn isLegacyNumericLiteral(raw: []const u8) bool {
         return raw.len >= 2 and raw[0] == '0' and raw[1] >= '0' and raw[1] <= '9';
     }
@@ -1183,7 +1181,8 @@ pub const Checker = struct {
     // arrow functions are transparent (8.5.1), regular functions are opaque
     fn superCallValidity(ctx: *SemanticCtx) SuperCallValidity {
         var iter = ctx.path.ancestors();
-        while (iter.next()) |i| {
+        var child: ast.NodeIndex = .null;
+        while (iter.next()) |i| : (child = i) {
             switch (ctx.tree.data(i)) {
                 .function => {
                     if (iter.next()) |parent| {
@@ -1201,7 +1200,10 @@ pub const Checker = struct {
                     }
                     return .not_in_constructor;
                 },
-                .property_definition, .static_block, .program => return .not_in_constructor,
+                .property_definition => |field| {
+                    if (field.value == child) return .not_in_constructor;
+                },
+                .static_block, .program => return .not_in_constructor,
                 else => {},
             }
         }
@@ -1210,7 +1212,8 @@ pub const Checker = struct {
 
     fn isSuperPropertyValid(ctx: *SemanticCtx) bool {
         var iter = ctx.path.ancestors();
-        while (iter.next()) |i| {
+        var child: ast.NodeIndex = .null;
+        while (iter.next()) |i| : (child = i) {
             switch (ctx.tree.data(i)) {
                 .function => {
                     if (iter.next()) |parent| {
@@ -1223,7 +1226,10 @@ pub const Checker = struct {
                     }
                     return false;
                 },
-                .property_definition, .static_block => return true,
+                .property_definition => |field| {
+                    if (field.value == child) return true;
+                },
+                .static_block => return true,
                 .program => return false,
                 else => {},
             }

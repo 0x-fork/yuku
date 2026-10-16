@@ -119,6 +119,7 @@ const Ctx = struct {
     tagged: bool = false,
     defer_trailing: bool = false,
     no_decorators: bool = false,
+    postfix_operand: bool = false,
 };
 
 const Printer = struct {
@@ -426,6 +427,7 @@ const Printer = struct {
 
     fn writeNodeText(self: *Self, idx: NodeIndex, text: []const u8) Error!void {
         const scope = try self.openComments(idx);
+        self.recordMapping(idx);
         try self.out.writeStr(text);
         try self.closeComments(idx, scope, false);
     }
@@ -889,6 +891,16 @@ const Printer = struct {
         if (key == .null) return;
         try self.emitLeadingComments(key, self.tree.commentsOf(key));
         self.skip_leading_of = key;
+    }
+
+    fn breaksLineAfter(self: *const Self, idx: NodeIndex) bool {
+        if (self.options.comments == .none) return false;
+        for (self.tree.commentsOf(idx)) |c| {
+            if (c.position != .after or !self.allowComment(c)) continue;
+            if (c.type == .line or !c.same_line) return true;
+            if (hasLineTerminator(self.tree.string(c.value))) return true;
+        }
+        return false;
     }
 
     fn emitTrailingComments(self: *Self, comments: []const ast.AttachedComment) Error!void {
@@ -1459,7 +1471,7 @@ const Printer = struct {
             try self.out.writeStr(op);
             try self.emitAssignTarget(e.argument, .{});
         } else {
-            try self.emitAssignTarget(e.argument, .{});
+            try self.emitAssignTarget(e.argument, .{ .postfix_operand = true });
             try self.out.writeStr(op);
         }
     }
@@ -1481,7 +1493,9 @@ const Printer = struct {
         const prev = self.in_assign_target;
         defer self.in_assign_target = prev;
 
-        if (needsParensAsAssignTarget(self.tree, idx)) {
+        const wrap = needsParensAsAssignTarget(self.tree, idx) or
+            (ctx.postfix_operand and self.breaksLineAfter(idx));
+        if (wrap) {
             self.in_assign_target = false;
             try self.out.writeByte('(');
             try self.emitExpr(idx, ctx);
@@ -2230,6 +2244,10 @@ const Printer = struct {
                 }
             }
             try self.closeList(depth);
+            try self.out.writeStr(" from ");
+        } else if (d.import_kind == .type) {
+            try self.out.writeByte(' ');
+            try self.out.writeStr("{}");
             try self.out.writeStr(" from ");
         } else {
             try self.out.writeByte(' ');
