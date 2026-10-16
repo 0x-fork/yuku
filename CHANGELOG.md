@@ -2,6 +2,23 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.20.1
+
+### Changes
+
+- Yuku runs in Vercel's Edge Runtime, which loads it through the `edge-light` condition (#264 by @arshad-yaseen)
+- `generate` is 12 to 17% faster with a source map, and 7 to 13% faster without one (#263 by @arshad-yaseen)
+- Parsing works on big-endian hosts such as s390x (#265 by @arshad-yaseen)
+- A `for (init;;)` head parses `in` correctly inside parentheses, literals, templates, functions, and classes (#265 by @arshad-yaseen)
+- JSX text after a closing fragment parses, so `<p><>a</> — b</p>` works (#265 by @arshad-yaseen)
+- TypeScript overloads of a private method no longer report a duplicate private name (#265 by @arshad-yaseen)
+- `super()` in a computed key of a class inside a derived constructor no longer reports an error (#265 by @arshad-yaseen)
+- `module.imports` lists `export {} from "m"` as a side-effect import, and `import()` or `require()` of a parenthesized string or a template literal without substitutions (#265 by @arshad-yaseen)
+- `generate` keeps the braces in `import type {} from "m"`, which printed as invalid `import type "m"` (#265 by @arshad-yaseen)
+- `generate` keeps the parentheses around a `++` or `--` operand followed by a comment that breaks the line (#265 by @arshad-yaseen)
+- Source maps map a JSX attribute's string value, and a string key that minifying prints as a name, to its own column (#265 by @arshad-yaseen)
+- `unwrap` from `yuku/ast` accepts any node, `null`, or `undefined`, and returns anything it does not unwrap as it is (#265 by @arshad-yaseen)
+
 ## 0.20.0
 
 ### Breaking
