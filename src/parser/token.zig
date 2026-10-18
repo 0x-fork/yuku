@@ -265,6 +265,11 @@ pub const TokenTag = enum(u32) {
         return self.hasMask(Mask.IsUnconditionallyReserved);
     }
 
+    /// Whether the token is a keyword reserved only in strict mode code.
+    pub fn isStrictModeReserved(self: TokenTag) bool {
+        return self.hasMask(Mask.IsStrictModeReserved);
+    }
+
     /// Whether the token is reserved unconditionally or in strict mode.
     pub fn isReserved(self: TokenTag) bool {
         return self.hasMask(Mask.IsUnconditionallyReserved | Mask.IsStrictModeReserved);
@@ -366,6 +371,50 @@ pub const TokenTag = enum(u32) {
             else => unreachable,
         };
     }
+};
+
+pub const keyword_length_min = 2;
+pub const keyword_length_max = 11;
+
+/// The tag of the word `lexeme`, or `.identifier`.
+pub fn keywordTag(lexeme: []const u8) TokenTag {
+    if (lexeme.len < keyword_length_min or lexeme.len > keyword_length_max) {
+        return .identifier;
+    }
+    const h = keywordHash(lexeme[0], lexeme[1], lexeme[lexeme.len - 1], lexeme.len);
+    const entry = &keyword_table[h];
+    if (entry.len != lexeme.len) return .identifier;
+    if (!std.mem.eql(u8, entry.name[0..lexeme.len], lexeme)) return .identifier;
+    return entry.tag;
+}
+
+const KeywordEntry = struct {
+    name: [keyword_length_max]u8,
+    len: u8,
+    tag: TokenTag,
+};
+
+inline fn keywordHash(c0: u8, c1: u8, c_last: u8, length: usize) u32 {
+    const h = @as(u32, c0) * 56 + @as(u32, c1) * 97 +
+        @as(u32, c_last) * 108 + @as(u32, @intCast(length)) * 117;
+    return h & 511;
+}
+
+const keyword_table: [512]KeywordEntry = blk: {
+    @setEvalBranchQuota(20_000);
+    var t: [512]KeywordEntry = @splat(.{ .name = @splat(0), .len = 0, .tag = .identifier });
+    for (std.enums.values(TokenTag)) |keyword_tag| {
+        if (!keyword_tag.isIdentifierLike()) continue;
+        const name = keyword_tag.toString() orelse continue;
+        std.debug.assert(name.len >= keyword_length_min);
+        std.debug.assert(name.len <= keyword_length_max);
+        const h = keywordHash(name[0], name[1], name[name.len - 1], name.len);
+        if (t[h].len != 0) @compileError("keyword perfect hash collision: " ++ name);
+        var entry: KeywordEntry = .{ .name = @splat(0), .len = name.len, .tag = keyword_tag };
+        @memcpy(entry.name[0..name.len], name);
+        t[h] = entry;
+    }
+    break :blk t;
 };
 
 pub const Span = extern struct {
