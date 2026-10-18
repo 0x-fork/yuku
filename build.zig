@@ -86,7 +86,6 @@ pub fn build(b: *std.Build) void {
     });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = dialect_tests })).step);
 
-    // host tools run fast with every assertion armed
     const safe_util = b.createModule(.{
         .root_source_file = b.path("src/util/root.zig"),
         .target = b.graph.host,
