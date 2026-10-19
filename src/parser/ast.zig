@@ -1,7 +1,4 @@
-//! AST node definitions. See [AST](https://yuku.fyi/parser/ast) for how to read the tree.
-//!
-//! Child fields (`NodeIndex`/`IndexRange`) of every node struct are declared
-//! in source order.
+//! AST nodes, children declared in source order. See [AST](https://yuku.fyi/parser/ast).
 
 const std = @import("std");
 const strings = @import("strings.zig");
@@ -16,6 +13,9 @@ pub const TokenFlag = @import("token.zig").TokenFlag;
 pub const TokenMask = @import("token.zig").Mask;
 pub const Precedence = @import("token.zig").Precedence;
 
+const CommentIndex = @import("comments.zig").Index;
+pub const CommentIterator = @import("comments.zig").Iterator;
+
 pub const Severity = enum {
     @"error",
     warning,
@@ -27,14 +27,13 @@ pub const Severity = enum {
     }
 };
 
-/// A span inside a diagnostic that carries an explanatory message.
+/// A span inside a diagnostic, with its own message.
 pub const Label = struct {
     span: Span,
     message: []const u8,
 };
 
-/// An error, warning, hint, or info produced during parsing or semantic
-/// analysis.
+/// A problem found by parsing or semantic analysis.
 pub const Diagnostic = struct {
     severity: Severity = .@"error",
     message: []const u8,
@@ -53,7 +52,7 @@ pub const SourceType = enum {
         return @tagName(self);
     }
 
-    /// Returns `.commonjs` for `.cjs` and `.cts` paths and `.module` otherwise.
+    /// `.commonjs` for `.cjs` and `.cts` paths, `.module` otherwise.
     pub fn fromPath(path: []const u8) SourceType {
         if (std.mem.endsWith(u8, path, ".cjs") or std.mem.endsWith(u8, path, ".cts")) {
             return .commonjs;
@@ -87,12 +86,20 @@ pub const Lang = enum {
     }
 };
 
-/// A line or block comment. `value` is the text without delimiters and
-/// `span` covers the whole comment.
+/// A line or block comment. `value` is the text without delimiters and `span`
+/// covers the whole comment, empty for one added with `Tree.addComment`.
+///
+/// An attached comment prints `before`, `after`, or `inside` its node, and
+/// `same_line` says whether it shares a line with that edge of the node.
 pub const Comment = struct {
     type: Type,
+    /// The text without delimiters.
     value: String,
-    span: Span,
+    /// Empty for a comment added with `Tree.addComment`.
+    span: Span = .{ .start = 0, .end = 0 },
+    position: Position = .before,
+    /// Whether it shares a line with the edge of the node it prints at.
+    same_line: bool = false,
 
     pub const Type = enum(u1) {
         line,
@@ -105,18 +112,6 @@ pub const Comment = struct {
             };
         }
     };
-};
-
-/// A comment bound to a host node, read with `Tree.commentsOf`.
-///
-/// `same_line` is true when the comment shares a line with the adjacent edge
-/// of the host, its start for `before` and its end for `after`. It is always
-/// false for `inside`.
-pub const AttachedComment = struct {
-    type: Comment.Type,
-    position: Position = .before,
-    same_line: bool = false,
-    value: String,
 
     pub const Position = enum(u2) {
         before,
@@ -129,25 +124,19 @@ pub const AttachedComment = struct {
     };
 };
 
-/// A parsed or programmatically built AST. All memory lives in one arena,
-/// so `deinit()` frees everything at once.
+/// A parsed or built AST, all in one arena that `deinit()` frees at once.
 pub const Tree = struct {
     /// The `program` node.
     root: NodeIndex = undefined,
     nodes: NodeList = .empty,
-    /// Child lists of all nodes, resolved with `extra()`.
+    /// Child lists of all nodes, read with `extra()`.
     extras: std.ArrayList(NodeIndex) = .empty,
     diagnostics: std.ArrayList(Diagnostic) = .empty,
-    /// Every comment in source order. Populated when the comment mode is
-    /// `.flat` or `.both`.
+    /// Every comment of the source in order, unless the comment mode is `.none`.
     comments: []const Comment = &.{},
-    /// Attached comments grouped by host node, read with `commentsOf()`.
-    /// Populated when the comment mode is `.attached` or `.both`.
-    attached_comments: []const AttachedComment = &.{},
-    /// Prefix sums into `attached_comments`, `nodes.len + 1` entries long.
-    attached_comment_offsets: []const u32 = &.{},
-    /// Every consumed token in source order, ending with `eof`. Empty unless
-    /// `Options.tokens` is set.
+    /// The comments of each node, read with `commentsOf()`.
+    comment_index: CommentIndex = .{},
+    /// Every token in source order, ending with `eof`, when `Options.tokens` is set.
     tokens: []const Token = &.{},
     arena: std.heap.ArenaAllocator,
     /// Empty for trees built with `initEmpty()`.
@@ -165,8 +154,7 @@ pub const Tree = struct {
         };
     }
 
-    /// Creates a tree without source text, for building an AST with
-    /// `addString()`.
+    /// Creates a tree without source text, for building an AST with `addString()`.
     pub fn initEmpty(child_allocator: std.mem.Allocator) Tree {
         return .{
             .arena = std.heap.ArenaAllocator.init(child_allocator),
@@ -194,7 +182,7 @@ pub const Tree = struct {
         return self.source_type == .module;
     }
 
-    /// Returns true if any diagnostic is an error.
+    /// Whether any diagnostic is an error.
     pub inline fn hasErrors(self: *const Tree) bool {
         for (self.diagnostics.items) |d| {
             if (d.severity == .@"error") return true;
@@ -226,7 +214,7 @@ pub const Tree = struct {
         return self.nodes.items(.span)[@backingInt(index)];
     }
 
-    /// Returns the child nodes for the given range.
+    /// The nodes of a child list.
     pub inline fn extra(self: *const Tree, range: IndexRange) []const NodeIndex {
         std.debug.assert(range.start + range.len <= self.extras.items.len);
         return self.extras.items[range.start..][0..range.len];
@@ -247,21 +235,18 @@ pub const Tree = struct {
         self.nodes.items(.span)[@backingInt(index)] = new_span;
     }
 
-    /// Updates the name of an identifier-shaped node in place.
+    /// Renames an identifier-shaped node in place.
     pub fn setIdentifierName(self: *Tree, index: NodeIndex, name: String) void {
         std.debug.assert(index != .null);
-        switch (self.data(index)) {
-            .binding_identifier => |bid| {
-                var n = bid;
-                n.name = name;
-                self.setData(index, .{ .binding_identifier = n });
-            },
-            inline .identifier_reference,
+        std.debug.assert(@backingInt(index) < self.nodes.len);
+        switch (self.nodes.items(.data)[@backingInt(index)]) {
+            inline .binding_identifier,
+            .identifier_reference,
             .identifier_name,
             .label_identifier,
             .private_identifier,
             .jsx_identifier,
-            => |_, tag| self.setData(index, @unionInit(NodeData, @tagName(tag), .{ .name = name })),
+            => |*node| node.name = name,
             else => unreachable,
         }
     }
@@ -296,39 +281,68 @@ pub const Tree = struct {
         return .{ .start = start, .len = @intCast(children.len) };
     }
 
-    /// Returns a `String` for a range of the source text.
+    /// A `String` for a range of the source text.
     pub inline fn sourceSlice(self: *const Tree, start: u32, end: u32) String {
         return self.strings.sourceSlice(start, end);
     }
 
-    /// Interns `str` in the string pool and returns its `String`. Use for text
-    /// that is not in the source, such as escaped or synthesized names.
+    /// Interns text that is not in the source, such as a synthesized name.
     pub fn addString(self: *Tree, str: []const u8) error{OutOfMemory}!String {
         return self.strings.addString(self.arena.allocator(), str);
     }
 
-    /// Returns the text of a `String`.
+    /// The text of a `String`.
     pub inline fn string(self: *const Tree, id: String) []const u8 {
         return self.strings.get(id);
     }
 
-    /// Returns the comments attached to `node`, in source order. Empty when
-    /// the comment mode does not attach comments.
-    pub inline fn commentsOf(self: *const Tree, node: NodeIndex) []const AttachedComment {
-        std.debug.assert(node != .null);
-        const offsets = self.attached_comment_offsets;
-        const i = @backingInt(node);
-        if (i + 1 >= offsets.len) return &.{};
-        std.debug.assert(offsets[i] <= offsets[i + 1]);
-        std.debug.assert(offsets[i + 1] <= self.attached_comments.len);
-        return self.attached_comments[offsets[i]..offsets[i + 1]];
+    /// The comments of `node`, the attached ones in source order, then the added ones.
+    pub inline fn commentsOf(self: *const Tree, node: NodeIndex) CommentIterator {
+        return .{ .tree = self, .id = self.comment_index.first(node) };
+    }
+
+    /// Whether `node` has comments.
+    pub inline fn hasComments(self: *const Tree, node: NodeIndex) bool {
+        return self.comment_index.has(node);
+    }
+
+    /// Adds `comment` to `node`, after the comments it has.
+    pub fn addComment(self: *Tree, node: NodeIndex, comment: Comment) error{OutOfMemory}!void {
+        try self.comment_index.add(self.arena.allocator(), self.comments.len, node, comment);
+    }
+
+    /// Gives the comments of `from` to `to`, or drops them when `to` is `.null`.
+    pub fn moveComments(self: *Tree, from: NodeIndex, to: NodeIndex) error{OutOfMemory}!void {
+        try self.comment_index.move(self.arena.allocator(), from, to);
+    }
+
+    /// The source comments wholly within `range`, in source order.
+    pub fn commentsIn(self: *const Tree, range: Span) []const Comment {
+        std.debug.assert(range.start <= range.end);
+        // comments never overlap, so their ends ascend with their starts
+        const first = std.sort.partitionPoint(Comment, self.comments, range.start, startsBefore);
+        const within = self.comments[first..];
+        const count = std.sort.partitionPoint(Comment, within, range.end, endsBy);
+        std.debug.assert(count <= within.len);
+        if (count > 0) std.debug.assert(within[0].span.start >= range.start);
+        if (count > 0) std.debug.assert(within[count - 1].span.end <= range.end);
+        if (count < within.len) std.debug.assert(within[count].span.end > range.end);
+        return within[0..count];
+    }
+
+    fn startsBefore(offset: u32, comment: Comment) bool {
+        return comment.span.start < offset;
+    }
+
+    fn endsBy(offset: u32, comment: Comment) bool {
+        return comment.span.end <= offset;
     }
 };
 
-/// Index into `Tree.nodes`. `.null` marks an absent child.
+/// An index into `Tree.nodes`, where `.null` marks an absent child.
 pub const NodeIndex = enum(u32) { null = std.math.maxInt(u32), _ };
 
-/// A child list, stored as a window into `Tree.extras`.
+/// A child list, as a window into `Tree.extras`.
 pub const IndexRange = struct {
     start: u32,
     len: u32,
@@ -388,8 +402,7 @@ pub const Class = struct {
 
 /// The `{ ... }` body of a class.
 pub const ClassBody = struct {
-    /// `method_definition`, `property_definition`, `static_block`, or
-    /// `ts_index_signature`.
+    /// `method_definition`, `property_definition`, `static_block`, or `ts_index_signature`.
     body: IndexRange,
 };
 
@@ -405,8 +418,7 @@ pub const MethodDefinitionKind = enum {
     }
 };
 
-/// Accessibility modifier of a TypeScript class member. `.none` means no
-/// modifier was written, which differs from an explicit `public`.
+/// A TypeScript accessibility modifier, where `.none` differs from an explicit `public`.
 pub const Accessibility = enum {
     none,
     public,
@@ -427,8 +439,7 @@ pub const Accessibility = enum {
 pub const MethodDefinition = struct {
     /// `decorator`.
     decorators: IndexRange,
-    /// `identifier_name`, `string_literal`, `numeric_literal`, `bigint_literal`,
-    /// or `private_identifier`. Any expression when `computed`.
+    /// An identifier name, literal, or `private_identifier`, or any expression when `computed`.
     key: NodeIndex,
     /// `function`.
     value: NodeIndex,
@@ -445,8 +456,7 @@ pub const MethodDefinition = struct {
 pub const PropertyDefinition = struct {
     /// `decorator`.
     decorators: IndexRange,
-    /// `identifier_name`, `string_literal`, `numeric_literal`, `bigint_literal`,
-    /// or `private_identifier`. Any expression when `computed`.
+    /// An identifier name, literal, or `private_identifier`, or any expression when `computed`.
     key: NodeIndex,
     /// `ts_type_annotation`. `.null` when absent.
     type_annotation: NodeIndex = .null,
@@ -774,8 +784,7 @@ pub const AssignmentOperator = enum {
 
 /// An assignment such as `x = 1` or `x += 1`.
 pub const AssignmentExpression = struct {
-    /// Any assignment target, or `array_pattern` or `object_pattern` for
-    /// destructuring.
+    /// Any assignment target, a pattern when destructuring.
     left: NodeIndex,
     /// Any expression.
     right: NodeIndex,
@@ -809,8 +818,7 @@ pub const VariableDeclaration = struct {
     declare: bool = false,
 };
 
-/// A single binding in a variable declaration. Its type annotation lives on
-/// `id`.
+/// A binding in a variable declaration, whose type annotation lives on `id`.
 pub const VariableDeclarator = struct {
     /// Any binding pattern.
     id: NodeIndex,
@@ -846,7 +854,7 @@ pub const SwitchStatement = struct {
 
 /// A `for (init; test; update)` loop.
 pub const ForStatement = struct {
-    /// `variable_declaration` or any expression. `.null` when absent.
+    /// `variable_declaration` or any expression.
     init: NodeIndex,
     /// Any expression. `.null` when absent.
     @"test": NodeIndex,
@@ -858,8 +866,7 @@ pub const ForStatement = struct {
 
 /// A `for (left in right)` loop.
 pub const ForInStatement = struct {
-    /// `variable_declaration`, any assignment target, or a destructuring
-    /// pattern.
+    /// `variable_declaration` or any assignment target.
     left: NodeIndex,
     /// Any expression.
     right: NodeIndex,
@@ -869,8 +876,7 @@ pub const ForInStatement = struct {
 
 /// A `for (left of right)` or `for await (left of right)` loop.
 pub const ForOfStatement = struct {
-    /// `variable_declaration`, any assignment target, or a destructuring
-    /// pattern.
+    /// `variable_declaration` or any assignment target.
     left: NodeIndex,
     /// Any expression.
     right: NodeIndex,
@@ -901,7 +907,7 @@ pub const LabeledStatement = struct {
 
 /// A `case` or `default` clause of a `switch` statement.
 pub const SwitchCase = struct {
-    /// Any expression. `.null` for `default`.
+    /// `.null` for `default`.
     @"test": NodeIndex,
     /// Any statement.
     consequent: IndexRange,
@@ -975,7 +981,7 @@ pub const NumericLiteral = struct {
     /// Source text, including any base prefix and `_` separators.
     raw: String = .empty,
 
-    /// Computes the IEEE 754 double value.
+    /// The IEEE 754 double value.
     pub fn value(self: NumericLiteral, tree: *const Tree) f64 {
         const raw = tree.string(self.raw);
         var buf: [128]u8 = undefined;
@@ -1051,7 +1057,7 @@ pub const RegExpLiteral = struct {
 
 /// A template literal.
 pub const TemplateLiteral = struct {
-    /// `template_element`. Always `expressions.len + 1` entries.
+    /// Always `expressions.len + 1` entries.
     quasis: IndexRange,
     /// Any expression.
     expressions: IndexRange,
@@ -1059,13 +1065,12 @@ pub const TemplateLiteral = struct {
 
 /// A static text span of a template literal.
 pub const TemplateElement = struct {
-    /// Escape-decoded text. Empty when `is_cooked_undefined`.
+    /// Escape-decoded text, empty when `is_cooked_undefined`.
     cooked: String = .empty,
-    /// Source text as written. Empty for synthetic nodes, which print from `cooked`.
+    /// Source text, empty for synthetic nodes, which print from `cooked`.
     raw: String = .empty,
     tail: bool,
-    /// True when an invalid escape in a tagged template leaves the cooked
-    /// value undefined.
+    /// True when an invalid escape in a tagged template leaves `cooked` undefined.
     is_cooked_undefined: bool = false,
 };
 
@@ -1074,7 +1079,7 @@ pub const IdentifierReference = struct {
     name: String = .empty,
 };
 
-/// A `#name` class member name. `name` excludes the `#`.
+/// A `#name` class member name, whose `name` excludes the `#`.
 pub const PrivateIdentifier = struct {
     name: String = .empty,
 };
@@ -1082,27 +1087,26 @@ pub const PrivateIdentifier = struct {
 /// An identifier that declares a binding.
 pub const BindingIdentifier = struct {
     name: String = .empty,
-    /// `decorator`. Only set on parameters.
+    /// Only set on parameters.
     decorators: IndexRange = .empty,
     /// `ts_type_annotation`. `.null` when absent.
     type_annotation: NodeIndex = .null,
     optional: bool = false,
 };
 
-/// An identifier that is neither a reference nor a binding, such as a
-/// property key or member name.
+/// An identifier that is neither a reference nor a binding, such as a property key.
 pub const IdentifierName = struct {
     name: String = .empty,
 };
 
-/// A statement label, also used as the target of `break` and `continue`.
+/// A statement label, also the target of `break` and `continue`.
 pub const LabelIdentifier = struct {
     name: String = .empty,
 };
 
 /// A pattern with a default value, such as `x = 0`.
 pub const AssignmentPattern = struct {
-    /// `decorator`. Only set on parameters.
+    /// Only set on parameters.
     decorators: IndexRange = .empty,
     /// Any binding pattern or assignment target.
     left: NodeIndex,
@@ -1115,7 +1119,7 @@ pub const AssignmentPattern = struct {
 
 /// A `...rest` element in a pattern or parameter list.
 pub const BindingRestElement = struct {
-    /// `decorator`. Only set on parameters.
+    /// Only set on parameters.
     decorators: IndexRange = .empty,
     /// Any binding pattern or assignment target.
     argument: NodeIndex,
@@ -1126,9 +1130,9 @@ pub const BindingRestElement = struct {
 
 /// An array destructuring pattern.
 pub const ArrayPattern = struct {
-    /// `decorator`. Only set on parameters.
+    /// Only set on parameters.
     decorators: IndexRange = .empty,
-    /// Any binding pattern or assignment target. `.null` for holes.
+    /// `.null` for holes.
     elements: IndexRange,
     /// `binding_rest_element`. `.null` when absent.
     rest: NodeIndex,
@@ -1139,7 +1143,7 @@ pub const ArrayPattern = struct {
 
 /// An object destructuring pattern.
 pub const ObjectPattern = struct {
-    /// `decorator`. Only set on parameters.
+    /// Only set on parameters.
     decorators: IndexRange = .empty,
     /// `binding_property`.
     properties: IndexRange,
@@ -1152,8 +1156,7 @@ pub const ObjectPattern = struct {
 
 /// A property in an `object_pattern`.
 pub const BindingProperty = struct {
-    /// `identifier_name`, `string_literal`, `numeric_literal`, or
-    /// `bigint_literal`. Any expression when `computed`.
+    /// An identifier name or literal, or any expression when `computed`.
     key: NodeIndex,
     /// Any binding pattern or assignment target.
     value: NodeIndex,
@@ -1163,7 +1166,7 @@ pub const BindingProperty = struct {
 
 /// An array literal.
 pub const ArrayExpression = struct {
-    /// Any expression or `spread_element`. `.null` for holes.
+    /// Any expression or `spread_element`, `.null` for holes.
     elements: IndexRange,
 };
 
@@ -1193,10 +1196,9 @@ pub const PropertyKind = enum {
 
 /// A property in an object literal.
 pub const ObjectProperty = struct {
-    /// `identifier_name`, `string_literal`, `numeric_literal`, or
-    /// `bigint_literal`. Any expression when `computed`.
+    /// An identifier name or literal, or any expression when `computed`.
     key: NodeIndex,
-    /// Any expression, or `function` for methods, getters, and setters.
+    /// Any expression, or `function` for methods and accessors.
     value: NodeIndex,
     kind: PropertyKind,
     /// True for the method shorthand `b() {}`.
@@ -1207,14 +1209,14 @@ pub const ObjectProperty = struct {
 
 /// The root node of every tree.
 pub const Program = struct {
-    /// `.script` or `.module`. CommonJS files are `.script`.
+    /// `.script` or `.module`, `.script` for CommonJS.
     source_type: SourceType,
     /// Any statement or `directive`.
     body: IndexRange,
     hashbang: ?Hashbang = null,
 };
 
-/// A `#!` line at the start of a file. `value` is the text after `#!`.
+/// A `#!` line at the start of a file, whose `value` is the text after `#!`.
 pub const Hashbang = struct {
     value: String = .empty,
 };
@@ -1227,11 +1229,7 @@ pub const Directive = struct {
     value: String = .empty,
 };
 
-/// Form of a `function` node.
-///
-/// `ts_declare_function` is a body-less declaration, either `declare function`
-/// or an overload signature. `ts_empty_body_function_expression` is the
-/// body-less `value` of an overload, abstract, or ambient class method.
+/// The `ts_*` forms have no body, as in overloads and ambient declarations.
 pub const FunctionType = enum {
     function_declaration,
     function_expression,
@@ -1239,7 +1237,7 @@ pub const FunctionType = enum {
     ts_empty_body_function_expression,
 };
 
-/// A function declaration or expression, also used as a method `value`.
+/// A function declaration or expression, also a method's `value`.
 pub const Function = struct {
     type: FunctionType,
     /// `binding_identifier`. `.null` when anonymous.
@@ -1250,12 +1248,11 @@ pub const Function = struct {
     params: NodeIndex,
     /// `ts_type_annotation`. `.null` when absent.
     return_type: NodeIndex = .null,
-    /// `function_body`. `.null` for the body-less `ts_*` forms.
+    /// `.null` for the body-less `ts_*` forms.
     body: NodeIndex,
     generator: bool,
     async: bool,
-    /// True for `declare function`. Tells an ambient declaration apart from an
-    /// overload signature, as both are `ts_declare_function`.
+    /// True for `declare function`, telling it apart from an overload signature.
     declare: bool = false,
 };
 
@@ -1271,14 +1268,7 @@ pub const BlockStatement = struct {
     body: IndexRange,
 };
 
-/// The grammar production a parameter list comes from. It decides whether
-/// duplicate parameter names are an error.
-///
-/// `formal_parameters` belongs to function declarations and expressions,
-/// including generator, async, and async generator functions.
-/// `unique_formal_parameters` belongs to methods and setters.
-/// `arrow_formal_parameters` belongs to arrow functions, and `signature` to
-/// TypeScript function types and signatures.
+/// The grammar production of a parameter list, which decides whether duplicate names are an error.
 pub const FormalParameterKind = enum {
     formal_parameters,
     unique_formal_parameters,
@@ -1295,8 +1285,7 @@ pub const FormalParameters = struct {
     kind: FormalParameterKind,
 };
 
-/// A single parameter. Its decorators, type annotation, and optional flag
-/// live on `pattern`.
+/// A parameter, whose decorators, type annotation, and optional flag live on `pattern`.
 pub const FormalParameter = struct {
     /// Any binding pattern or `ts_this_parameter`.
     pattern: NodeIndex,
@@ -1333,8 +1322,7 @@ pub const SequenceExpression = struct {
 pub const MemberExpression = struct {
     /// Any expression.
     object: NodeIndex,
-    /// `identifier_name` or `private_identifier`. Any expression when
-    /// `computed`.
+    /// `identifier_name` or `private_identifier`, or any expression when `computed`.
     property: NodeIndex,
     computed: bool,
     /// True when this link is written with `?.`.
@@ -1353,8 +1341,7 @@ pub const CallExpression = struct {
     optional: bool,
 };
 
-/// Wraps a whole optional chain such as `a?.b.c`, so short-circuiting covers
-/// every link.
+/// Wraps a whole optional chain such as `a?.b.c`, which short-circuits as one.
 pub const ChainExpression = struct {
     /// `member_expression`, `call_expression`, or `ts_non_null_expression`.
     expression: NodeIndex,
@@ -1402,8 +1389,7 @@ pub const MetaProperty = struct {
     property: NodeIndex,
 };
 
-/// Whether a TypeScript import or export is type-only, as in `import type`
-/// or `export { type T }`.
+/// Whether an import or export is type-only, as in `import type`.
 pub const ImportOrExportKind = enum {
     value,
     type,
@@ -1475,8 +1461,7 @@ pub const ImportAttribute = struct {
 
 /// An `export { ... }` list or an exported declaration.
 pub const ExportNamedDeclaration = struct {
-    /// `variable_declaration`, `function`, `class`, or a TypeScript
-    /// declaration. `.null` for the `export { ... }` form.
+    /// `.null` for the `export { ... }` form.
     declaration: NodeIndex,
     /// `export_specifier`.
     specifiers: IndexRange,
@@ -1484,8 +1469,7 @@ pub const ExportNamedDeclaration = struct {
     source: NodeIndex,
     /// `import_attribute`.
     attributes: IndexRange,
-    /// `.type` for `export type { ... }` and for exported interfaces, type
-    /// aliases, and `declare` declarations.
+    /// `.type` for `export type { ... }` and exported types and `declare` declarations.
     export_kind: ImportOrExportKind = .value,
 };
 
@@ -1497,7 +1481,7 @@ pub const ExportDefaultDeclaration = struct {
 
 /// An `export * from` declaration, with an optional `as name`.
 pub const ExportAllDeclaration = struct {
-    /// `identifier_name` or `string_literal`. `.null` when absent.
+    /// `identifier_name` or `string_literal`.
     exported: NodeIndex,
     /// `string_literal`.
     source: NodeIndex,
@@ -1508,15 +1492,14 @@ pub const ExportAllDeclaration = struct {
 
 /// A `local as exported` export specifier.
 pub const ExportSpecifier = struct {
-    /// `identifier_reference`, or `identifier_name` or `string_literal` when
-    /// re-exporting from another module.
+    /// `identifier_reference`, or `identifier_name` or `string_literal` in a re-export.
     local: NodeIndex,
     /// `identifier_name` or `string_literal`.
     exported: NodeIndex,
     export_kind: ImportOrExportKind = .value,
 };
 
-/// A `: Type` annotation. Its span starts at the `:`.
+/// A `: Type` annotation, whose span starts at the `:`.
 pub const TSTypeAnnotation = struct {
     /// Any TS type.
     type_annotation: NodeIndex,
@@ -1574,8 +1557,7 @@ pub const TSTypeReference = struct {
 
 /// A dotted name such as `A.B.C`, nested as `(A.B).C`.
 pub const TSQualifiedName = struct {
-    /// `identifier_reference`, `identifier_name`, `binding_identifier`,
-    /// `this_expression`, or `ts_qualified_name`.
+    /// An identifier, `this_expression`, or `ts_qualified_name`.
     left: NodeIndex,
     /// `identifier_name`.
     right: NodeIndex,
@@ -1583,8 +1565,7 @@ pub const TSQualifiedName = struct {
 
 /// A `typeof` type query such as `typeof a.b`.
 pub const TSTypeQuery = struct {
-    /// `identifier_reference`, `this_expression`, `ts_qualified_name`, or
-    /// `ts_import_type`.
+    /// `identifier_reference`, `this_expression`, `ts_qualified_name`, or `ts_import_type`.
     expr_name: NodeIndex,
     /// `ts_type_parameter_instantiation`. `.null` when absent.
     type_arguments: NodeIndex = .null,
@@ -1596,8 +1577,7 @@ pub const TSImportType = struct {
     source: NodeIndex,
     /// `object_expression`. `.null` when absent.
     options: NodeIndex = .null,
-    /// `identifier_name`, or a `ts_qualified_name` of `identifier_name`s.
-    /// `.null` when absent.
+    /// `identifier_name`, or a `ts_qualified_name` of them.
     qualifier: NodeIndex = .null,
     /// `ts_type_parameter_instantiation`. `.null` when absent.
     type_arguments: NodeIndex = .null,
@@ -1628,18 +1608,15 @@ pub const TSTypeParameterInstantiation = struct {
     params: IndexRange,
 };
 
-/// A literal used as a type. Templates with interpolations use
-/// `ts_template_literal_type` and `null` uses `ts_null_keyword`.
+/// A literal type, apart from `null` and templates with interpolations.
 pub const TSLiteralType = struct {
-    /// `string_literal`, `numeric_literal`, `bigint_literal`, `boolean_literal`,
-    /// `template_literal`, or a `unary_expression` for a signed number such as
-    /// `-1`.
+    /// A literal, or a `unary_expression` for a signed number such as `-1`.
     literal: NodeIndex,
 };
 
 /// A template literal type with at least one interpolation.
 pub const TSTemplateLiteralType = struct {
-    /// `template_element`. Always `types.len + 1` entries.
+    /// Always `types.len + 1` entries.
     quasis: IndexRange,
     /// Any TS type.
     types: IndexRange,
@@ -1661,13 +1638,11 @@ pub const TSIndexedAccessType = struct {
 
 /// A tuple type such as `[A, B?, ...C[]]`.
 pub const TSTupleType = struct {
-    /// Any TS type, `ts_optional_type`, `ts_rest_type`, or
-    /// `ts_named_tuple_member`.
+    /// Any TS type, `ts_optional_type`, `ts_rest_type`, or `ts_named_tuple_member`.
     element_types: IndexRange,
 };
 
-/// A labeled tuple element such as `label: T` or `label?: T`. A labeled rest
-/// element `...label: T` is wrapped in a `ts_rest_type`.
+/// A labeled tuple element, wrapped in a `ts_rest_type` for `...label: T`.
 pub const TSNamedTupleMember = struct {
     /// `identifier_name`.
     label: NodeIndex,
@@ -1676,8 +1651,7 @@ pub const TSNamedTupleMember = struct {
     optional: bool = false,
 };
 
-/// An optional unlabeled tuple element such as `T?`. Labeled elements use
-/// `TSNamedTupleMember.optional` instead.
+/// An unlabeled optional tuple element `T?`.
 pub const TSOptionalType = struct {
     /// Any TS type.
     type_annotation: NodeIndex,
@@ -1708,8 +1682,7 @@ pub const TSJSDocNonNullableType = struct {
 /// A JSDoc unknown type, a bare `?` as in `Foo<?>`.
 pub const TSJSDocUnknownType = struct {};
 
-/// A union type such as `A | B`. A leading `|` is part of the span, so
-/// `type A = | B` gives a single-member union.
+/// A union type, including the single-member `| B` that a leading `|` makes.
 pub const TSUnionType = struct {
     /// Any TS type.
     types: IndexRange,
@@ -1769,7 +1742,7 @@ pub const TSFunctionType = struct {
     type_parameters: NodeIndex = .null,
     /// `formal_parameters`.
     params: NodeIndex,
-    /// `ts_type_annotation` whose span starts at the `=>`.
+    /// Its span starts at the `=>`.
     return_type: NodeIndex,
 };
 
@@ -1779,7 +1752,7 @@ pub const TSConstructorType = struct {
     type_parameters: NodeIndex = .null,
     /// `formal_parameters`.
     params: NodeIndex,
-    /// `ts_type_annotation` whose span starts at the `=>`.
+    /// Its span starts at the `=>`.
     return_type: NodeIndex,
     abstract: bool = false,
 };
@@ -1788,23 +1761,18 @@ pub const TSConstructorType = struct {
 pub const TSTypePredicate = struct {
     /// `identifier_name` or `ts_this_type`.
     parameter_name: NodeIndex,
-    /// `ts_type_annotation` whose span equals the inner type's. `.null` for
-    /// `asserts x`.
+    /// Its span equals the inner type's, `.null` for `asserts x`.
     type_annotation: NodeIndex = .null,
     asserts: bool = false,
 };
 
 /// An object type literal such as `{ a: T }`.
 pub const TSTypeLiteral = struct {
-    /// `ts_property_signature`, `ts_method_signature`,
-    /// `ts_call_signature_declaration`, `ts_construct_signature_declaration`,
-    /// or `ts_index_signature`.
+    /// Property, method, call, construct, or index signatures.
     members: IndexRange,
 };
 
-/// A `?` or `readonly` modifier of a `ts_mapped_type`. `.true` is the bare
-/// modifier, `.plus` and `.minus` are its `+` and `-` forms, and `.none`
-/// means it is absent.
+/// A mapped type modifier, `.true` when bare and `.plus` or `.minus` with a sign.
 pub const TSMappedTypeModifier = enum(u2) {
     none,
     true,
@@ -1818,7 +1786,7 @@ pub const TSMappedType = struct {
     key: NodeIndex,
     /// Any TS type after `in`.
     constraint: NodeIndex,
-    /// Any TS type after `as`. `.null` when absent.
+    /// The type after `as`.
     name_type: NodeIndex = .null,
     /// Any TS type. `.null` when absent.
     type_annotation: NodeIndex = .null,
@@ -1828,8 +1796,7 @@ pub const TSMappedType = struct {
 
 /// A property signature in a type literal or interface.
 pub const TSPropertySignature = struct {
-    /// `identifier_name`, `string_literal`, `numeric_literal`, or
-    /// `bigint_literal`. Any expression when `computed`.
+    /// An identifier name or literal, or any expression when `computed`.
     key: NodeIndex,
     /// `ts_type_annotation`. `.null` when absent.
     type_annotation: NodeIndex = .null,
@@ -1851,8 +1818,7 @@ pub const TSMethodSignatureKind = enum(u2) {
 
 /// A method, getter, or setter signature in a type literal or interface.
 pub const TSMethodSignature = struct {
-    /// `identifier_name`, `string_literal`, `numeric_literal`, or
-    /// `bigint_literal`. Any expression when `computed`.
+    /// An identifier name or literal, or any expression when `computed`.
     key: NodeIndex,
     /// `ts_type_parameter_declaration`. `.null` when absent.
     type_parameters: NodeIndex = .null,
@@ -1886,8 +1852,7 @@ pub const TSConstructSignatureDeclaration = struct {
     return_type: NodeIndex = .null,
 };
 
-/// An index signature such as `[key: K]: V` in a type literal, interface, or
-/// class body.
+/// An index signature such as `[key: K]: V`.
 pub const TSIndexSignature = struct {
     /// `binding_identifier`, each with its own type annotation.
     parameters: IndexRange,
@@ -1923,16 +1888,13 @@ pub const TSInterfaceDeclaration = struct {
 
 /// The `{ ... }` body of an interface.
 pub const TSInterfaceBody = struct {
-    /// `ts_property_signature`, `ts_method_signature`,
-    /// `ts_call_signature_declaration`, `ts_construct_signature_declaration`,
-    /// or `ts_index_signature`.
+    /// Property, method, call, construct, or index signatures.
     body: IndexRange,
 };
 
 /// An entry of an interface `extends` clause.
 pub const TSInterfaceHeritage = struct {
-    /// `identifier_reference`, `this_expression`, or a `member_expression`
-    /// chain of names.
+    /// `identifier_reference`, `this_expression`, or a `member_expression` of names.
     expression: NodeIndex,
     /// `ts_type_parameter_instantiation`. `.null` when absent.
     type_arguments: NodeIndex = .null,
@@ -1940,8 +1902,7 @@ pub const TSInterfaceHeritage = struct {
 
 /// An entry of a class `implements` clause.
 pub const TSClassImplements = struct {
-    /// `identifier_reference`, `this_expression`, or a `member_expression`
-    /// chain of names.
+    /// `identifier_reference`, `this_expression`, or a `member_expression` of names.
     expression: NodeIndex,
     /// `ts_type_parameter_instantiation`. `.null` when absent.
     type_arguments: NodeIndex = .null,
@@ -1992,7 +1953,7 @@ pub const TSModuleDeclaration = struct {
     declare: bool = false,
 };
 
-/// The `{ ... }` body of a `namespace`, `module`, or `global` declaration.
+/// The body of a `namespace`, `module`, or `global` declaration.
 pub const TSModuleBlock = struct {
     /// Any statement.
     body: IndexRange,
@@ -2008,8 +1969,7 @@ pub const TSGlobalDeclaration = struct {
     declare: bool = false,
 };
 
-/// A constructor parameter with an accessibility, `readonly`, or `override`
-/// modifier, which also declares a class field.
+/// A constructor parameter with a modifier, which also declares a class field.
 pub const TSParameterProperty = struct {
     /// `decorator`.
     decorators: IndexRange,
@@ -2080,8 +2040,7 @@ pub const TSNamespaceExportDeclaration = struct {
 pub const TSImportEqualsDeclaration = struct {
     /// `binding_identifier`.
     id: NodeIndex,
-    /// `ts_external_module_reference`, `identifier_reference`, or
-    /// `ts_qualified_name`.
+    /// `ts_external_module_reference`, `identifier_reference`, or `ts_qualified_name`.
     module_reference: NodeIndex,
     import_kind: ImportOrExportKind = .value,
 };
@@ -2096,8 +2055,7 @@ pub const TSExternalModuleReference = struct {
 pub const JSXElement = struct {
     /// `jsx_opening_element`.
     opening_element: NodeIndex,
-    /// `jsx_text`, `jsx_expression_container`, `jsx_spread_child`,
-    /// `jsx_element`, or `jsx_fragment`.
+    /// `jsx_text`, `jsx_expression_container`, `jsx_spread_child`, or an element or fragment.
     children: IndexRange,
     /// `jsx_closing_element`. `.null` when self-closing.
     closing_element: NodeIndex,
@@ -2124,8 +2082,7 @@ pub const JSXClosingElement = struct {
 pub const JSXFragment = struct {
     /// `jsx_opening_fragment`.
     opening_fragment: NodeIndex,
-    /// `jsx_text`, `jsx_expression_container`, `jsx_spread_child`,
-    /// `jsx_element`, or `jsx_fragment`.
+    /// `jsx_text`, `jsx_expression_container`, `jsx_spread_child`, or an element or fragment.
     children: IndexRange,
     /// `jsx_closing_fragment`.
     closing_fragment: NodeIndex,
@@ -2162,8 +2119,7 @@ pub const JSXMemberExpression = struct {
 pub const JSXAttribute = struct {
     /// `jsx_identifier` or `jsx_namespaced_name`.
     name: NodeIndex,
-    /// `string_literal`, `jsx_expression_container`, `jsx_element`, or
-    /// `jsx_fragment`. `.null` when absent.
+    /// `string_literal`, `jsx_expression_container`, `jsx_element`, or `jsx_fragment`.
     value: NodeIndex,
 };
 
@@ -2186,7 +2142,7 @@ pub const JSXEmptyExpression = struct {};
 pub const JSXText = struct {
     /// Text with its entities decoded.
     value: String = .empty,
-    /// Source text as written. Empty for synthetic nodes, which print from `value`.
+    /// Source text, empty for synthetic nodes, which print from `value`.
     raw: String = .empty,
 };
 
@@ -2196,8 +2152,7 @@ pub const JSXSpreadChild = struct {
     expression: NodeIndex,
 };
 
-/// A node of the dialect compiled into the parser, see
-/// [Dialects](https://yuku.fyi/parser/dialect/).
+/// A node of the compiled-in dialect, see [Dialects](https://yuku.fyi/parser/dialect/).
 pub const Dialect = struct {
     kind: @import("dialect.zig").Kind,
     /// In source order, `.null` for an absent part.
@@ -2381,8 +2336,7 @@ pub const NodeData = union(enum) {
 
     dialect: Dialect,
 
-    /// True when the node produces a value at runtime. For `function` and
-    /// `class`, only the expression forms count.
+    /// Whether the node is an expression, counting only expression forms of `function` and `class`.
     pub fn isExpression(self: NodeData) bool {
         return switch (self) {
             .identifier_reference,
@@ -2430,8 +2384,7 @@ pub const NodeData = union(enum) {
         };
     }
 
-    /// True when the node is valid in statement position. For `function` and
-    /// `class`, only the declaration forms count.
+    /// Whether the node is a statement, counting only declaration forms of `function` and `class`.
     pub fn isStatement(self: NodeData) bool {
         return switch (self) {
             .if_statement,
@@ -2487,7 +2440,7 @@ pub const NodeData = union(enum) {
         };
     }
 
-    /// True for `function` in any form and for `arrow_function_expression`.
+    /// Whether the node is a `function` in any form or an `arrow_function_expression`.
     pub fn isCallable(self: NodeData) bool {
         return switch (self) {
             .function,
@@ -2497,8 +2450,7 @@ pub const NodeData = union(enum) {
         };
     }
 
-    /// True for `binding_identifier`, `array_pattern`, `object_pattern`, and
-    /// `assignment_pattern`.
+    /// Whether the node is a binding identifier, array, object, or assignment pattern.
     pub fn isPattern(self: NodeData) bool {
         return switch (self) {
             .binding_identifier,
@@ -2510,9 +2462,7 @@ pub const NodeData = union(enum) {
         };
     }
 
-    /// True for declarations, including imports, exports, and TypeScript
-    /// declarations. For `function` and `class`, only the declaration forms
-    /// count.
+    /// Whether the node is a declaration, imports, exports, and TypeScript ones included.
     pub fn isDeclaration(self: NodeData) bool {
         return switch (self) {
             .variable_declaration,
@@ -2533,7 +2483,7 @@ pub const NodeData = union(enum) {
         };
     }
 
-    /// True for `for`, `for-in`, `for-of`, `while`, and `do-while` loops.
+    /// Whether the node is a loop.
     pub fn isIteration(self: NodeData) bool {
         return switch (self) {
             .for_statement,

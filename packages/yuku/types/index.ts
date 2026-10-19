@@ -3,28 +3,21 @@ import type { TokenKindMap } from "./tokens";
 /** How the source is parsed. */
 type SourceType = "script" | "module" | "commonjs";
 
-/** What `Program.sourceType` reports, per ESTree. `commonjs` input reports `script`. */
+/** What `Program.sourceType` reports. `commonjs` input reports `script`. */
 type ModuleKind = "script" | "module";
 
 /** The language of the source. */
 type SourceLang = "js" | "ts" | "jsx" | "tsx" | "dts";
 
-/** How a file is read, shared by every package that takes source text. */
+/** How a file is read. */
 interface FileOptions {
-  /**
-   * Names the file. `lang` and `sourceType` default from its extension, and a build with a
-   * dialect parses the files with the dialect's extensions in it.
-   */
+  /** The file path, which `lang`, `sourceType` and the dialect default from. */
   path?: string;
-  /**
-   * A standard language, which parses without a dialect.
-   * @default "js", or from `path`, or the dialect's language for a source with no `path`
-   */
+  /** Parses without the dialect when set. @default from `path` or the dialect, else "js" */
   lang?: SourceLang;
   /**
-   * `"module"` is strict and allows `import` and `export`. `"commonjs"` is a script whose top
-   * level is a function body, so it allows `return`.
-   * @default "module", or "commonjs" for `.cjs` and `.cts` paths
+   * `"commonjs"` is a script whose top level allows `return`.
+   * @default "commonjs" for `.cjs` and `.cts` paths, else "module"
    */
   sourceType?: SourceType;
 }
@@ -32,60 +25,44 @@ interface FileOptions {
 /** Whether a comment is a line or a block comment. */
 type CommentType = "Line" | "Block";
 
-/** A comment in the flat `comments` list of a parse result. */
+/** Where an attached comment sits, `inside` meaning within an otherwise empty node. */
+type CommentPosition = "before" | "after" | "inside";
+
+/** A comment, also in its node's {@link BaseNode.comments} with `attachComments`. */
 interface Comment {
   type: CommentType;
   /** Text without the delimiters. */
   value: string;
-  /** UTF-16 offset. The span includes the delimiters. */
+  /** UTF-16 offset, delimiters included. */
   start: number;
   /** UTF-16 offset. */
   end: number;
-}
-
-/**
- * Where an {@link AttachedComment} sits relative to its host node. `inside` means within an
- * otherwise empty host.
- */
-type CommentPosition = "before" | "after" | "inside";
-
-/** A comment attached to a host node through {@link BaseNode.comments}. */
-interface AttachedComment {
-  type: CommentType;
-  position: CommentPosition;
-  /**
-   * The comment shares a line with the nearest edge of its host, the start for `before` and the
-   * end for `after`. Always false for `inside`.
-   */
-  sameLine: boolean;
-  /** Text without the delimiters. */
-  value: string;
+  position?: CommentPosition;
+  /** Whether it shares a line with the node edge it sits by. */
+  sameLine?: boolean;
 }
 
 /** One of the values of the `TokenKind` object. */
 type TokenKind = TokenKindMap[keyof TokenKindMap];
 
-/**
- * The tokens of a file in source order, read on demand from the parser's token table. A token is
- * an index below `length`. Comments are not tokens.
- */
+/** The tokens of a file in source order, each an index below `length`. Comments are not tokens. */
 interface TokenList {
   readonly length: number;
   /** `tokens.kind(i) === TokenKind.Arrow` */
   kind(index: number): TokenKind;
   /** Source text. A string literal keeps its quotes. */
   text(index: number): string;
-  /** UTF-16 offset, like nodes. */
+  /** UTF-16 offset. */
   start(index: number): number;
   end(index: number): number;
 
   /** A reserved word or a contextual keyword the lexer knows. */
   isKeyword(index: number): boolean;
-  /** Reserved unconditionally or in strict mode, so `let` and `yield` count. */
+  /** Reserved always or in strict mode. */
   isReserved(index: number): boolean;
   /** A word that can never be an identifier. */
   isUnconditionallyReserved(index: number): boolean;
-  /** Reserved in strict mode only, such as `let`, `static`, and `implements`. */
+  /** Reserved in strict mode only, such as `let`. */
   isStrictModeReserved(index: number): boolean;
   /** An identifier or any keyword. */
   isIdentifierLike(index: number): boolean;
@@ -97,7 +74,7 @@ interface TokenList {
   /** Operator precedence, 0 when none. */
   precedence(index: number): number;
 
-  /** A line terminator precedes the token, the condition ASI checks. */
+  /** A line terminator precedes the token. */
   newlineBefore(index: number): boolean;
   /** The text has an escape sequence. */
   escaped(index: number): boolean;
@@ -106,10 +83,7 @@ interface TokenList {
   /** A string with an unpaired surrogate. */
   loneSurrogate(index: number): boolean;
 
-  /**
-   * The half-open index range of the tokens inside a node. A node within a single token, such as
-   * a template element, has an empty range.
-   */
+  /** The half-open range of the tokens inside a node, empty within a single token. */
   range(node: Span): [from: number, to: number];
   /** The first token inside a node, or -1. */
   first(node: Span): number;
@@ -123,7 +97,7 @@ interface TokenList {
   at(offset: number): number;
 }
 
-/** A labeled source span attached to a {@link Diagnostic}. */
+/** A labeled span of a {@link Diagnostic}. */
 interface DiagnosticLabel {
   /** UTF-16 offset. */
   start: number;
@@ -135,11 +109,11 @@ interface DiagnosticLabel {
 /** Severity level of a {@link Diagnostic}. */
 type DiagnosticSeverity = "error" | "warning" | "hint" | "info";
 
-/** A problem in the source, in the same shape from every package. */
+/** A problem in the source. */
 interface Diagnostic {
   severity: DiagnosticSeverity;
   message: string;
-  /** The file it belongs to, or null when the source was given no path. */
+  /** Null when the source has no path. */
   path: string | null;
   /** UTF-16 offset. */
   start: number;
@@ -147,7 +121,7 @@ interface Diagnostic {
   end: number;
   /** Related spans. */
   labels: DiagnosticLabel[];
-  /** A fix suggestion, or null. */
+  /** A fix suggestion. */
   help: string | null;
 }
 
@@ -157,10 +131,7 @@ type NodeType = Node["type"];
 /** The `type` of every node except dialect nodes. */
 type StandardNodeType = Exclude<NodeType, keyof DialectNodes>;
 
-/**
- * The nodes of the dialect compiled into the WebAssembly module, by `type`. A dialect's package
- * declares them here through module augmentation, which adds them to `Node`.
- */
+/** The dialect's nodes by `type`, which module augmentation adds to `Node`. */
 export interface DialectNodes {}
 
 /** The node, or union of nodes, carrying a given `type`. */
@@ -169,8 +140,8 @@ type NodeOfType<K extends NodeType> = Extract<Node, { type: K }>;
 interface BaseNode {
   start: number;
   end: number;
-  /** Comments attached to this node in source order, present only with `attachComments`. */
-  comments?: AttachedComment[];
+  /** Attached comments in source order, with `attachComments`. */
+  comments?: Comment[];
 }
 
 type Span = BaseNode;
@@ -1594,11 +1565,7 @@ interface Program extends BaseNode {
   body: ProgramStatement[];
 }
 
-/**
- * An element of `Program.body` or `TSModuleBlock.body`. Unlike {@link Statement}, it includes
- * module declarations and directives, which a nested position such as a loop body never holds.
- * `BlockStatement.body` holds directives too, since they open a function body.
- */
+/** A statement, module declaration or directive, as `Program.body` holds. */
 type ProgramStatement = Statement | ModuleDeclaration | Directive;
 
 type Declaration =
@@ -1755,7 +1722,6 @@ export type {
   NodeType,
   StandardNodeType,
   Comment,
-  AttachedComment,
   CommentType,
   CommentPosition,
   Diagnostic,

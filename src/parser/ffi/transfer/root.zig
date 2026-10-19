@@ -1,16 +1,14 @@
-// AST transfer format v11, little endian with no version byte
-// the decoder tools/estree/decoder.zig generates shares the extern struct layouts below
+// AST transfer format v12, little endian with no version byte
+// tools/estree/decoder.zig generates the JavaScript decoder from these layouts
 //
 // sections, in order
 //
-//   header             HEADER_SIZE bytes
-//   nodes              node_count * NODE_SIZE, one PackedNode each
-//   extra              extra_count * 4, the u32 array backing IndexRange
+//   header             one Header
+//   nodes              node_count PackedNode
+//   extra              extra_count u32, the array backing IndexRange
 //   strings            string_pool_len bytes of UTF-8, zero-padded to a 4-byte boundary
-//   attached_offsets   (node_count + 1) u32 prefix sums, only with FLAG_ATTACHED_COMMENTS
-//   attached_comments  attached_comment_count * ATTACHED_COMMENT_SIZE
-//   comments           comment_count * COMMENT_SIZE in source order, only with FLAG_COMMENTS
-//   tokens             token_count * TOKEN_SIZE, each `Token` as is
+//   comments           comment_count PackedComment in source order
+//   tokens             token_count ast.Token, each as is
 //   diagnostics        diag_count variable-length entries
 //
 // node fields
@@ -39,23 +37,20 @@ const dialect = @import("parser").dialect;
 
 pub const semantic = @import("semantic.zig");
 
-// field order defines the wire layout
-const Header = extern struct {
+pub const Header = extern struct {
     node_count: u32,
     extra_count: u32,
     string_pool_len: u32,
     source_len: u32,
     comment_count: u32,
-    attached_comment_count: u32,
     token_count: u32,
     diag_count: u32,
     program_index: u32,
     flags: u32,
-    // positions below this need no UTF-16 conversion
     first_non_ascii: u32,
 };
 
-const PackedNode = extern struct {
+pub const PackedNode = extern struct {
     tag: u8,
     _pad0: u8 = 0,
     flags: u16,
@@ -64,10 +59,14 @@ const PackedNode = extern struct {
     span_end: u32,
 };
 
-// `flags` bit 0 is the type, 0 line and 1 block
-const PackedComment = extern struct {
+// `node` is the node a comment is attached to, 0xFFFFFFFF for none, and `flags` packs
+//   bit 0     type       (0 line, 1 block)
+//   bits 1-2  position   (0 before, 1 after, 2 inside)
+//   bit 3     same_line
+pub const PackedComment = extern struct {
     flags: u8,
     _pad: [3]u8 = .{ 0, 0, 0 },
+    node: u32,
     value_start: u32,
     value_end: u32,
     span_start: u32,
@@ -75,125 +74,51 @@ const PackedComment = extern struct {
 };
 
 pub const COMMENT_TYPE_BIT: u8 = 0;
-
-// attached_offsets gives each node its run of entries, `flags` packs
-//   bit 0     type       (0 line, 1 block)
-//   bits 1-2  position   (0 before, 1 after, 2 inside)
-//   bit 3     same_line
-const PackedAttachedComment = extern struct {
-    flags: u8,
-    _pad: [3]u8 = .{ 0, 0, 0 },
-    value_start: u32,
-    value_end: u32,
-};
-
-pub const ATTACHED_COMMENT_POSITION_SHIFT: u8 = 1;
-pub const ATTACHED_COMMENT_SAME_LINE_BIT: u8 = 3;
-
-pub const HEADER_SIZE: u32 = @sizeOf(Header);
-pub const NODE_SIZE: u32 = @sizeOf(PackedNode);
-pub const COMMENT_SIZE: u32 = @sizeOf(PackedComment);
-pub const ATTACHED_COMMENT_SIZE: u32 = @sizeOf(PackedAttachedComment);
-pub const TOKEN_SIZE: u32 = @sizeOf(ast.Token);
-
-pub const HDR_NODE_COUNT_U32: u32 = @offsetOf(Header, "node_count") / 4;
-pub const HDR_EXTRA_COUNT_U32: u32 = @offsetOf(Header, "extra_count") / 4;
-pub const HDR_STRING_POOL_LEN_U32: u32 = @offsetOf(Header, "string_pool_len") / 4;
-pub const HDR_SOURCE_LEN_U32: u32 = @offsetOf(Header, "source_len") / 4;
-pub const HDR_COMMENT_COUNT_U32: u32 = @offsetOf(Header, "comment_count") / 4;
-pub const HDR_ATTACHED_COMMENT_COUNT_U32: u32 = @offsetOf(Header, "attached_comment_count") / 4;
-pub const HDR_TOKEN_COUNT_U32: u32 = @offsetOf(Header, "token_count") / 4;
-pub const HDR_DIAG_COUNT_U32: u32 = @offsetOf(Header, "diag_count") / 4;
-pub const HDR_PROGRAM_INDEX_U32: u32 = @offsetOf(Header, "program_index") / 4;
-pub const HDR_FLAGS_U32: u32 = @offsetOf(Header, "flags") / 4;
-pub const HDR_FIRST_NON_ASCII_U32: u32 = @offsetOf(Header, "first_non_ascii") / 4;
+pub const COMMENT_POSITION_SHIFT: u8 = 1;
+pub const COMMENT_SAME_LINE_BIT: u8 = 3;
 
 pub const FLAG_TS: u32 = 1 << 0;
 pub const FLAG_ATTACHED_COMMENTS: u32 = 1 << 1;
 pub const FLAG_COMMENTS: u32 = 1 << 2;
 pub const FLAG_SEMANTIC: u32 = 1 << 3;
 
-pub const NODE_FLAGS_OFFSET: u8 = @offsetOf(PackedNode, "flags");
-pub const NODE_HEADER_U32S: u8 = @offsetOf(PackedNode, "slots") / 4;
-pub const NODE_SPAN_START_U32: u8 = @offsetOf(PackedNode, "span_start") / 4;
-pub const NODE_SPAN_END_U32: u8 = @offsetOf(PackedNode, "span_end") / 4;
-
-const NODE_DATA_SLOTS: u8 = NODE_SPAN_START_U32 - NODE_HEADER_U32S;
-pub const NODE_FLAG_BITS: u8 = @bitSizeOf(@FieldType(PackedNode, "flags"));
-
-pub const COMMENT_FLAGS_OFFSET: u8 = @offsetOf(PackedComment, "flags");
-pub const COMMENT_VALUE_START_OFFSET: u8 = @offsetOf(PackedComment, "value_start");
-pub const COMMENT_VALUE_END_OFFSET: u8 = @offsetOf(PackedComment, "value_end");
-pub const COMMENT_SPAN_START_OFFSET: u8 = @offsetOf(PackedComment, "span_start");
-pub const COMMENT_SPAN_END_OFFSET: u8 = @offsetOf(PackedComment, "span_end");
-
-pub const ATTACHED_COMMENT_FLAGS_OFFSET: u8 = @offsetOf(PackedAttachedComment, "flags");
-pub const ATTACHED_COMMENT_VALUE_START_OFFSET: u8 = @offsetOf(PackedAttachedComment, "value_start");
-pub const ATTACHED_COMMENT_VALUE_END_OFFSET: u8 = @offsetOf(PackedAttachedComment, "value_end");
-
-pub const TOKEN_START_U32: u8 = (@offsetOf(ast.Token, "span") + @offsetOf(ast.Span, "start")) / 4;
-pub const TOKEN_END_U32: u8 = (@offsetOf(ast.Token, "span") + @offsetOf(ast.Span, "end")) / 4;
-pub const TOKEN_TAG_U32: u8 = @offsetOf(ast.Token, "tag") / 4;
-pub const TOKEN_FLAGS_U32: u8 = @offsetOf(ast.Token, "flags") / 4;
+pub const Layout = struct { bit: u8, slot: u8 };
 
 comptime {
-    std.debug.assert(TOKEN_SIZE == 16);
+    std.debug.assert(@sizeOf(ast.Token) == 16);
     std.debug.assert(@offsetOf(ast.Token, "flags") % 4 == 0);
 
     @setEvalBranchQuota(10_000);
+    const slots_max = @typeInfo(@FieldType(PackedNode, "slots")).array.len;
+    const flag_bits_max = @bitSizeOf(@FieldType(PackedNode, "flags"));
     const info = @typeInfo(ast.NodeData).@"union";
     for (info.field_names, info.field_types) |name, T| {
         if (@typeInfo(T) != .@"struct") continue;
-        if (totalU32Slots(T) > NODE_DATA_SLOTS) {
+        const end = layout(T, @typeInfo(T).@"struct".field_types.len);
+        if (end.slot > slots_max) {
             @compileError(std.fmt.comptimePrint(
                 "node '{s}' needs more than {d} u32 slots",
-                .{ name, NODE_DATA_SLOTS },
+                .{ name, slots_max },
             ));
         }
-        if (totalFlagBits(T) > NODE_FLAG_BITS) {
+        if (end.bit > flag_bits_max) {
             @compileError(std.fmt.comptimePrint(
                 "node '{s}' needs more than {d} flag bits",
-                .{ name, NODE_FLAG_BITS },
+                .{ name, flag_bits_max },
             ));
         }
     }
 }
 
-// layout helpers shared with the decoder generator in tools/estree/decoder.zig
-
-pub fn flagBitCount(comptime T: type, comptime field_idx: usize) u8 {
-    const Field = @typeInfo(T).@"struct".field_types[field_idx];
-    if (Field == bool) return 1;
-    if (Field == dialect.Kind) return 16;
-    if (Field == ?ast.ImportPhase) return 1 + enumBitWidth(ast.ImportPhase);
-    if (Field == ?ast.Hashbang) return 1;
-    if (comptime isEnumType(Field)) return enumBitWidth(Field);
-    if (Field == ast.NodeIndex or Field == ast.IndexRange or Field == ast.String) return 0;
-    @compileError("unsupported field type '" ++ @typeName(Field) ++ "' in " ++ @typeName(T));
-}
-
-pub fn flagBitForField(comptime T: type, comptime target: usize) u8 {
+pub fn layout(comptime T: type, comptime index: usize) Layout {
     comptime {
-        var bit: u8 = 0;
-        for (0..target) |i| bit += flagBitCount(T, i);
-        return bit;
-    }
-}
-
-pub fn fieldU32Count(comptime T: type, comptime field_idx: usize) u8 {
-    const Field = @typeInfo(T).@"struct".field_types[field_idx];
-    if (Field == ast.NodeIndex) return 1;
-    if (Field == ast.IndexRange or Field == ast.String) return 2;
-    if (Field == ?ast.Hashbang) return 2;
-    if (Field == bool or Field == ?ast.ImportPhase or comptime isEnumType(Field)) return 0;
-    @compileError("unsupported field type '" ++ @typeName(Field) ++ "' in " ++ @typeName(T));
-}
-
-pub fn u32SlotForField(comptime T: type, comptime target: usize) u8 {
-    comptime {
-        var slot: u8 = 0;
-        for (0..target) |i| slot += fieldU32Count(T, i);
-        return slot;
+        var at: Layout = .{ .bit = 0, .slot = 0 };
+        for (@typeInfo(T).@"struct".field_types[0..index]) |Field| {
+            const size = fieldSize(Field, T);
+            at.bit += size.bit;
+            at.slot += size.slot;
+        }
+        return at;
     }
 }
 
@@ -201,35 +126,30 @@ pub fn enumBitWidth(comptime E: type) u8 {
     return std.math.log2_int_ceil(usize, @typeInfo(E).@"enum".field_names.len);
 }
 
-pub fn isEnumType(comptime T: type) bool {
-    return @typeInfo(T) == .@"enum";
-}
-
-pub fn totalU32Slots(comptime T: type) u8 {
-    return u32SlotForField(T, @typeInfo(T).@"struct".field_types.len);
-}
-
-pub fn totalFlagBits(comptime T: type) u8 {
-    return flagBitForField(T, @typeInfo(T).@"struct".field_types.len);
+fn fieldSize(comptime Field: type, comptime T: type) Layout {
+    if (Field == bool) return .{ .bit = 1, .slot = 0 };
+    if (Field == dialect.Kind) return .{ .bit = 16, .slot = 0 };
+    if (Field == ?ast.ImportPhase) return .{ .bit = 1 + enumBitWidth(ast.ImportPhase), .slot = 0 };
+    if (Field == ?ast.Hashbang) return .{ .bit = 1, .slot = 2 };
+    if (Field == ast.NodeIndex) return .{ .bit = 0, .slot = 1 };
+    if (Field == ast.IndexRange or Field == ast.String) return .{ .bit = 0, .slot = 2 };
+    if (@typeInfo(Field) == .@"enum") return .{ .bit = enumBitWidth(Field), .slot = 0 };
+    @compileError("unsupported field type '" ++ @typeName(Field) ++ "' in " ++ @typeName(T));
 }
 
 pub fn bufferSize(tree: *const ast.Tree) usize {
     std.debug.assert(tree.nodes.len <= std.math.maxInt(u32));
     std.debug.assert(tree.extras.items.len <= std.math.maxInt(u32));
     std.debug.assert(tree.source.len <= std.math.maxInt(u32));
-    // severity, span_start, span_end, message_len, has_help, label_count
     const diag_fixed = 1 + 4 + 4 + 4 + 1 + 4;
-    // span_start, span_end, message_len
     const label_fixed = 4 + 4 + 4;
 
-    var size: usize = HEADER_SIZE +
-        tree.nodes.len * NODE_SIZE +
+    var size: usize = @sizeOf(Header) +
+        tree.nodes.len * @sizeOf(PackedNode) +
         tree.extras.items.len * 4 +
         std.mem.alignForward(usize, tree.strings.extra.items.len, 4) +
-        tree.attached_comment_offsets.len * 4 +
-        tree.attached_comments.len * ATTACHED_COMMENT_SIZE +
-        tree.comments.len * COMMENT_SIZE +
-        tree.tokens.len * TOKEN_SIZE;
+        tree.comments.len * @sizeOf(PackedComment) +
+        tree.tokens.len * @sizeOf(ast.Token);
 
     for (tree.diagnostics.items) |d| {
         size += diag_fixed + d.message.len;
@@ -247,12 +167,10 @@ pub fn serializeInto(tree: *const ast.Tree, buf: []u8) usize {
     if (builtin.optimize.runtimeSafety()) assertPostOrder(tree);
 
     const string_pool_len: u32 = @intCast(tree.strings.extra.items.len);
-    const has_attached = tree.attached_comment_offsets.len != 0;
-    if (has_attached) std.debug.assert(tree.attached_comment_offsets.len == tree.nodes.len + 1);
 
     var hdr_flags: u32 = 0;
     if (tree.isTs()) hdr_flags |= FLAG_TS;
-    if (has_attached) hdr_flags |= FLAG_ATTACHED_COMMENTS;
+    if (tree.comment_index.chains.count() != 0) hdr_flags |= FLAG_ATTACHED_COMMENTS;
     if (tree.comments.len != 0) hdr_flags |= FLAG_COMMENTS;
 
     const hdr: Header = .{
@@ -261,7 +179,6 @@ pub fn serializeInto(tree: *const ast.Tree, buf: []u8) usize {
         .string_pool_len = string_pool_len,
         .source_len = @intCast(tree.source.len),
         .comment_count = @intCast(tree.comments.len),
-        .attached_comment_count = @intCast(tree.attached_comments.len),
         .token_count = @intCast(tree.tokens.len),
         .diag_count = @intCast(tree.diagnostics.items.len),
         .program_index = @backingInt(tree.root),
@@ -275,7 +192,7 @@ pub fn serializeInto(tree: *const ast.Tree, buf: []u8) usize {
     for (tree.nodes.items(.data), tree.nodes.items(.span), 0..) |*data, span, i| {
         nodes_out[i] = packNode(data, span);
     }
-    pos += tree.nodes.len * NODE_SIZE;
+    pos += tree.nodes.len * @sizeOf(PackedNode);
 
     writeBytes(buf, &pos, std.mem.sliceAsBytes(tree.extras.items));
 
@@ -284,33 +201,22 @@ pub fn serializeInto(tree: *const ast.Tree, buf: []u8) usize {
     @memset(buf[pos..][0..pool_pad], 0);
     pos += pool_pad;
 
-    writeBytes(buf, &pos, std.mem.sliceAsBytes(tree.attached_comment_offsets));
-
-    const attached_out: [*]PackedAttachedComment = @ptrCast(@alignCast(buf.ptr + pos));
-    for (tree.attached_comments, 0..) |c, i| {
-        var flags: u8 = 0;
-        if (c.type == .block) flags |= 1 << COMMENT_TYPE_BIT;
-        flags |= @as(u8, @backingInt(c.position)) << ATTACHED_COMMENT_POSITION_SHIFT;
-        if (c.same_line) flags |= 1 << ATTACHED_COMMENT_SAME_LINE_BIT;
-        attached_out[i] = .{
-            .flags = flags,
-            .value_start = c.value.start,
-            .value_end = c.value.end,
-        };
-    }
-    pos += tree.attached_comments.len * ATTACHED_COMMENT_SIZE;
-
     const comments_out: [*]PackedComment = @ptrCast(@alignCast(buf.ptr + pos));
     for (tree.comments, 0..) |c, i| {
+        var flags: u8 = @as(u8, @backingInt(c.type)) << COMMENT_TYPE_BIT;
+        flags |= @as(u8, @backingInt(c.position)) << COMMENT_POSITION_SHIFT;
+        flags |= @as(u8, @intFromBool(c.same_line)) << COMMENT_SAME_LINE_BIT;
         comments_out[i] = .{
-            .flags = if (c.type == .block) 1 << COMMENT_TYPE_BIT else 0,
+            .flags = flags,
+            .node = @backingInt(ast.NodeIndex.null),
             .value_start = c.value.start,
             .value_end = c.value.end,
             .span_start = c.span.start,
             .span_end = c.span.end,
         };
     }
-    pos += tree.comments.len * COMMENT_SIZE;
+    writeCommentNodes(tree, comments_out[0..tree.comments.len]);
+    pos += tree.comments.len * @sizeOf(PackedComment);
 
     writeBytes(buf, &pos, std.mem.sliceAsBytes(tree.tokens));
 
@@ -395,41 +301,36 @@ fn packPayload(n: *PackedNode, payload: anytype) void {
     const info = @typeInfo(T).@"struct";
     inline for (info.field_names, info.field_types, 0..) |name, Field, i| {
         const val = @field(payload, name);
-        const bit = comptime flagBitForField(T, i);
-        const slot = comptime u32SlotForField(T, i);
+        const at = comptime layout(T, i);
 
         if (Field == bool) {
-            if (val) setFlagBit(n, bit);
+            if (val) setFlagBits(n, at.bit, 1);
         } else if (Field == ast.NodeIndex) {
-            n.slots[slot] = @backingInt(val);
+            n.slots[at.slot] = @backingInt(val);
         } else if (Field == ast.IndexRange) {
-            n.slots[slot] = val.start;
-            n.slots[slot + 1] = val.len;
+            n.slots[at.slot] = val.start;
+            n.slots[at.slot + 1] = val.len;
         } else if (Field == ast.String) {
-            n.slots[slot] = val.start;
-            n.slots[slot + 1] = val.end;
-        } else if (comptime isEnumType(Field)) {
-            setFlagBits(n, bit, @backingInt(val));
+            n.slots[at.slot] = val.start;
+            n.slots[at.slot + 1] = val.end;
+        } else if (@typeInfo(Field) == .@"enum") {
+            setFlagBits(n, at.bit, @backingInt(val));
         } else if (Field == ?ast.ImportPhase) {
             if (val) |v| {
-                setFlagBit(n, bit);
-                setFlagBits(n, bit + 1, @backingInt(v));
+                setFlagBits(n, at.bit, 1);
+                setFlagBits(n, at.bit + 1, @backingInt(v));
             }
         } else if (Field == ?ast.Hashbang) {
             if (val) |h| {
-                setFlagBit(n, bit);
-                n.slots[slot] = h.value.start;
-                n.slots[slot + 1] = h.value.end;
+                setFlagBits(n, at.bit, 1);
+                n.slots[at.slot] = h.value.start;
+                n.slots[at.slot + 1] = h.value.end;
             }
         } else {
             @compileError("unsupported field type '" ++ @typeName(Field) ++
                 "' in " ++ @typeName(T));
         }
     }
-}
-
-inline fn setFlagBit(n: *PackedNode, comptime bit: u8) void {
-    n.flags |= @as(@FieldType(PackedNode, "flags"), 1) << @intCast(bit);
 }
 
 inline fn setFlagBits(n: *PackedNode, comptime bit: u8, val: anytype) void {
@@ -444,4 +345,18 @@ fn firstNonAsciiOffset(source: []const u8) usize {
     }
     for (source[i..], i..) |c, offset| if (c >= 0x80) return offset;
     return source.len;
+}
+
+fn writeCommentNodes(tree: *const ast.Tree, out: []PackedComment) void {
+    const index = &tree.comment_index;
+    std.debug.assert(index.added.items.len == 0);
+    var chains = index.chains.iterator();
+    while (chains.next()) |entry| {
+        var id = entry.value_ptr.first;
+        for (0..out.len) |_| {
+            out[id].node = @backingInt(entry.key_ptr.*);
+            id = index.links.items[id];
+            if (id == std.math.maxInt(u32)) break;
+        } else unreachable;
+    }
 }

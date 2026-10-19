@@ -11,23 +11,8 @@ const grammar = @import("grammar.zig");
 const dialect = @import("dialect.zig");
 const comments = @import("comments.zig");
 
-/// How comments are collected. Not at all, as a flat list, attached to host nodes, or both.
-pub const CommentMode = enum {
-    none,
-    flat,
-    attached,
-    both,
-
-    pub inline fn collects(self: CommentMode) bool {
-        return self != .none;
-    }
-    pub inline fn attaches(self: CommentMode) bool {
-        return self == .attached or self == .both;
-    }
-    pub inline fn isFlat(self: CommentMode) bool {
-        return self == .flat or self == .both;
-    }
-};
+/// How comments are collected and attached to their nodes.
+pub const CommentMode = enum { none, collect, attach };
 
 pub const Options = struct {
     /// How the source is parsed. `.commonjs` treats the top level as a function body.
@@ -36,8 +21,8 @@ pub const Options = struct {
     lang: ast.Lang = .js,
     /// Whether parenthesized expressions are kept as `ParenthesizedExpression` nodes.
     preserve_parens: bool = true,
-    /// Whether and how comments are collected.
-    comments: CommentMode = .flat,
+    /// Whether comments are collected, and attached to their nodes.
+    comments: CommentMode = .collect,
     /// Whether to keep every consumed token in `Tree.tokens`.
     tokens: bool = false,
     /// Whether the dialect compiled into the parser reads this source.
@@ -82,15 +67,12 @@ pub const Error = error{OutOfMemory};
 pub const Parser = struct {
     tree: ast.Tree,
     source: []const u8,
-    source_type: ast.SourceType,
-    lang: ast.Lang,
     preserve_parens: bool,
     comment_mode: CommentMode,
     collect_tokens: bool,
     dialect: bool,
     lexer: lexer.Lexer,
     diagnostics: std.ArrayList(ast.Diagnostic) = .empty,
-    // the tokens the committed parse advanced past, `current_token` is never in it
     tokens: std.ArrayList(Token) = .empty,
 
     current_token: Token,
@@ -111,51 +93,25 @@ pub const Parser = struct {
     // token offsets whose speculation failed, so a rewinding ancestor never re-parses them
     ts_rejected_speculations: std.AutoHashMapUnmanaged(u32, void) = .empty,
 
-    pub fn init(child_allocator: std.mem.Allocator, source: []const u8, options: Options) Parser {
-        if (options.dialect) std.debug.assert(dialect.bound);
-        var tree = ast.Tree.init(child_allocator, source);
-        tree.source_type = options.source_type;
-        tree.lang = options.lang;
-        return .{
-            .tree = tree,
-            .source = source,
-            .source_type = options.source_type,
-            .lang = options.lang,
-            .preserve_parens = options.preserve_parens,
-            .comment_mode = options.comments,
-            .collect_tokens = options.tokens,
-            .dialect = options.dialect,
-            .lexer = undefined,
-            .current_token = Token.eof(0),
-        };
-    }
-
     pub inline fn allocator(self: *Parser) std.mem.Allocator {
         return self.tree.allocator();
     }
 
-    pub fn parse(self: *Parser) Error!ast.Tree {
-        try self.parseInner();
-        return self.tree;
-    }
-
-    fn parseInner(self: *Parser) Error!void {
+    fn parse(self: *Parser) Error!ast.Tree {
         errdefer self.tree.arena.deinit();
 
         self.lexer = lexer.Lexer.init(
             self.source,
             self.allocator(),
-            self.source_type,
-            self.comment_mode.collects(),
+            self.tree.source_type,
+            self.comment_mode != .none,
         );
 
         // ScriptBody is [~Yield, ~Await, ~Return], ModuleItemList is [+Await], and a
         // commonjs body is [+Return]
-        self.context.yield = false;
         self.context.await = self.tree.isModule();
-        self.context.@"return" = self.source_type == .commonjs;
-
-        self.ts_context.ambient = self.lang == .dts;
+        self.context.@"return" = self.tree.source_type == .commonjs;
+        self.ts_context.ambient = self.tree.lang == .dts;
 
         try self.advance() orelse {
             self.current_token = try self.recoverNextToken();
@@ -167,27 +123,23 @@ pub const Parser = struct {
         if (self.state.cover_init_names > 0) try grammar.reportCoverInitializedNames(self);
 
         std.debug.assert(self.current_token.tag == .eof);
-        try self.commitEof();
+        if (self.collect_tokens) try self.tokens.append(self.allocator(), self.current_token);
 
-        self.tree.root = try self.tree.addNode(
-            .{
-                .program = .{
-                    .source_type = if (self.source_type == .module) .module else .script,
-                    .body = body,
-                    .hashbang = if (self.lexer.hashbang) |h| .{
-                        .value = self.tree.sourceSlice(h.start, h.start + h.len),
-                    } else null,
-                },
-            },
-            .{ .start = 0, .end = self.current_token.span.end },
-        );
+        self.tree.root = try self.tree.addNode(.{ .program = .{
+            .source_type = if (self.tree.source_type == .module) .module else .script,
+            .body = body,
+            .hashbang = if (self.lexer.hashbang) |h| .{
+                .value = self.tree.sourceSlice(h.start, h.start + h.len),
+            } else null,
+        } }, .{ .start = 0, .end = self.current_token.span.end });
 
         self.tree.diagnostics = self.diagnostics;
         if (!self.preserve_parens) stripParenthesizedNodes(&self.tree);
-        const raw_comments = self.lexer.comments.items;
-        if (self.comment_mode.attaches()) try comments.attach(&self.tree, raw_comments);
-        if (self.comment_mode.isFlat()) self.tree.comments = raw_comments;
+        const collected = self.lexer.comments.items;
+        if (self.comment_mode == .attach) try comments.attach(&self.tree, collected);
+        self.tree.comments = collected;
         if (self.collect_tokens) self.tree.tokens = self.tokens.items;
+        return self.tree;
     }
 
     inline fn commitToken(self: *Parser, token: Token) Error!void {
@@ -201,28 +153,16 @@ pub const Parser = struct {
         }
     }
 
-    fn commitEof(self: *Parser) Error!void {
-        if (!self.collect_tokens) return;
-        std.debug.assert(self.current_token.tag == .eof);
-        try self.tokens.append(self.allocator(), self.current_token);
-    }
-
-    pub const BodyKind = enum {
-        program,
-        function,
-        module_block,
-        other,
-    };
+    pub const BodyKind = enum { program, function, module_block, other };
 
     pub fn parseBody(self: *Parser, terminator: ?TokenTag, kind: BodyKind) Error!ast.IndexRange {
-        self.context.directive_prologue =
-            kind == .program or kind == .function or kind == .module_block;
+        self.context.directive_prologue = kind != .other;
         defer self.context.directive_prologue = false;
 
         const statements_checkpoint = self.scratch_statements.begin();
         defer self.scratch_statements.reset(statements_checkpoint);
 
-        while (!self.isAtBodyEnd(terminator)) {
+        while (self.current_token.tag != .eof and self.current_token.tag != terminator) {
             if (try statements.parseStatement(self, .{ .body = kind })) |statement| {
                 try self.scratch_statements.append(self.allocator(), statement);
             } else {
@@ -231,11 +171,6 @@ pub const Parser = struct {
         }
 
         return self.flushToExtras(&self.scratch_statements, statements_checkpoint);
-    }
-
-    inline fn isAtBodyEnd(self: *Parser, terminator: ?TokenTag) bool {
-        return self.current_token.tag == .eof or
-            (terminator != null and self.current_token.tag == terminator.?);
     }
 
     /// Returns the resolved name of an identifier-like token, without a private `#` and
@@ -247,12 +182,10 @@ pub const Parser = struct {
         return self.tree.sourceSlice(start, token.span.end);
     }
 
-    /// Returns the decoded string value without surrounding quotes.
-    pub inline fn stringValue(self: *Parser, token: Token) Error!ast.String {
-        if (!token.isEscaped()) {
-            return self.tree.sourceSlice(token.span.start + 1, token.span.end - 1);
-        }
-        return self.decode(util.Utf.decodeStringEscapes, token.span.start + 1, token.span.end - 1);
+    /// Returns the escape-decoded text of a string or template element, without its delimiters.
+    pub inline fn stringValue(self: *Parser, token: Token, span: ast.Span) Error!ast.String {
+        if (!token.isEscaped()) return self.tree.sourceSlice(span.start, span.end);
+        return self.decode(util.Utf.decodeStringEscapes, span.start, span.end);
     }
 
     /// Returns JSX text or the inside of a JSX attribute string with its entities decoded.
@@ -261,18 +194,6 @@ pub const Parser = struct {
             return self.tree.sourceSlice(start, end);
         }
         return self.decode(util.Utf.decodeJSXEntities, start, end);
-    }
-
-    /// Returns the decoded content of a template quasi span.
-    pub inline fn templateElementValue(
-        self: *Parser,
-        token: Token,
-        span: ast.Span,
-    ) Error!ast.String {
-        if (!token.isEscaped()) {
-            return self.tree.sourceSlice(span.start, span.end);
-        }
-        return self.decode(util.Utf.decodeStringEscapes, span.start, span.end);
     }
 
     fn decodeEscapedIdentifier(self: *Parser, start: u32, end: u32) Error!ast.String {
@@ -313,7 +234,6 @@ pub const Parser = struct {
         return self.source[span.start..span.end];
     }
 
-    // false after a reported lexical error
     inline fn nextTokenInto(self: *Parser, out: *Token) Error!bool {
         self.lexer.nextTokenInto(out) catch |e| {
             if (e == error.OutOfMemory) return error.OutOfMemory;
@@ -335,7 +255,10 @@ pub const Parser = struct {
 
     /// Advances to the next token, reporting an escaped keyword consumed in keyword position.
     pub fn advance(self: *Parser) Error!?void {
-        try self.checkEscapedKeyword();
+        const token = self.current_token;
+        if (token.isEscaped()) {
+            if (token.tag.isKeyword()) try self.reportEscapedKeyword(token.span);
+        }
         return self.advanceWithoutEscapeCheck();
     }
 
@@ -347,12 +270,6 @@ pub const Parser = struct {
             if (!try self.nextTokenInto(&self.current_token)) return null;
         }
         try self.commitToken(leaving);
-    }
-
-    pub inline fn checkEscapedKeyword(self: *Parser) Error!void {
-        const token = self.current_token;
-        if (!token.isEscaped()) return;
-        if (token.tag.isKeyword()) try self.reportEscapedKeyword(token.span);
     }
 
     pub noinline fn reportEscapedKeyword(self: *Parser, span: ast.Span) Error!void {
@@ -418,11 +335,9 @@ pub const Parser = struct {
         comments_len: usize,
 
         pub inline fn next(self: *Peek) Token {
-            // lookahead mostly fetches identifiers and simple punctuation
             var token: Token = undefined;
             if (self.parser.lexer.tryNextToken(&token)) return token;
-            return self.parser.lexer.nextToken() catch
-                Token.invalid(self.parser.lexer.cursor);
+            return self.parser.lexer.nextToken() catch Token.invalid(self.parser.lexer.cursor);
         }
 
         pub inline fn end(self: Peek) void {
@@ -496,16 +411,6 @@ pub const Parser = struct {
         return null;
     }
 
-    /// Consumes an optional semicolon. ASI always inserts one after the `)` of `do-while`.
-    pub fn eatSemicolonLenient(self: *Parser, end: u32) Error!?u32 {
-        if (self.current_token.tag == .semicolon) {
-            const semicolon_end = self.current_token.span.end;
-            try self.advance() orelse return null;
-            return semicolon_end;
-        }
-        return end;
-    }
-
     /// https://tc39.es/ecma262/#sec-rules-of-automatic-semicolon-insertion
     pub inline fn canInsertImplicitSemicolon(_: *Parser, token: Token) bool {
         return token.tag == .eof or token.hasLineTerminatorBefore() or token.tag == .right_brace;
@@ -515,20 +420,15 @@ pub const Parser = struct {
         const datas = tree.nodes.items(.data);
         const spans = tree.nodes.items(.span);
         for (0..datas.len) |i| {
-            var inner: u32 = switch (datas[i]) {
-                .parenthesized_expression => |p| @backingInt(p.expression),
-                .ts_parenthesized_type => |p| @backingInt(p.type_annotation),
-                else => continue,
-            };
-
+            var inner: u32 = @intCast(i);
             while (true) {
-                switch (datas[inner]) {
-                    .parenthesized_expression => |p| inner = @backingInt(p.expression),
-                    .ts_parenthesized_type => |p| inner = @backingInt(p.type_annotation),
+                inner = switch (datas[inner]) {
+                    .parenthesized_expression => |p| @backingInt(p.expression),
+                    .ts_parenthesized_type => |p| @backingInt(p.type_annotation),
                     else => break,
-                }
+                };
             }
-
+            if (inner == i) continue;
             datas[i] = datas[inner];
             spans[i] = spans[inner];
         }
@@ -587,13 +487,7 @@ pub const Parser = struct {
                 try self.commitToken(self.current_token);
             }
             self.current_token = try self.recoverNextToken();
-
-            if (self.current_token.tag == .eof) break;
-
-            if (terminator) |t| {
-                if (self.current_token.tag == t) break;
-            }
-
+            if (self.current_token.tag == terminator) break;
             if (self.current_token.hasLineTerminatorBefore() and
                 self.current_token.tag.isKeyword()) break;
         }
@@ -614,20 +508,12 @@ pub const Parser = struct {
     }
 
     fn ensureCapacity(self: *Parser) Error!void {
-        if (self.tree.nodes.capacity > 0) return;
-
+        std.debug.assert(self.tree.nodes.capacity == 0);
         const alloc = self.allocator();
         const source_len = self.source.len;
-
-        const estimated_nodes = if (source_len < 512_000)
-            @max(256, source_len / 2)
-        else
-            source_len / 4;
-
-        const estimated_extra = if (source_len < 512_000)
-            source_len / 6
-        else
-            source_len / 12;
+        const is_small = source_len < 512_000;
+        const estimated_nodes = if (is_small) @max(256, source_len / 2) else source_len / 4;
+        const estimated_extra = if (is_small) source_len / 6 else source_len / 12;
 
         try self.tree.nodes.ensureTotalCapacity(alloc, estimated_nodes);
         try self.tree.extras.ensureTotalCapacity(alloc, estimated_extra);
@@ -691,6 +577,18 @@ pub fn parse(
     source: []const u8,
     options: Options,
 ) Error!ast.Tree {
-    var p = Parser.init(child_allocator, source, options);
-    return p.parse();
+    if (options.dialect) std.debug.assert(dialect.bound);
+    var parser: Parser = .{
+        .tree = ast.Tree.init(child_allocator, source),
+        .source = source,
+        .preserve_parens = options.preserve_parens,
+        .comment_mode = options.comments,
+        .collect_tokens = options.tokens,
+        .dialect = options.dialect,
+        .lexer = undefined,
+        .current_token = Token.eof(0),
+    };
+    parser.tree.source_type = options.source_type;
+    parser.tree.lang = options.lang;
+    return parser.parse();
 }
