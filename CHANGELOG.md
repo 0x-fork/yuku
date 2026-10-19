@@ -2,6 +2,29 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.21.0
+
+### Breaking
+
+- `analyze` and `Analyzer` report the early errors that need scopes, such as redeclarations, only with `semanticErrors: true`, as `parse` does, so pass it to keep them (#273 by @arshad-yaseen)
+- `yuku/types` no longer exports `AttachedComment`. A node's `comments` holds the same `Comment` objects as the `comments` list, so use `Comment`, which now also has `start` and `end` (#272 by @arshad-yaseen)
+- Zig: the `comments` parse option takes `.none`, `.collect`, or `.attach` in place of `.flat`, `.attached`, and `.both`, and `tree.commentsOf` returns an iterator of `Comment` (#272 by @arshad-yaseen)
+- Zig: `semantic.analyze` takes options, and reports early errors only with `.check = true` (#273 by @arshad-yaseen)
+- Zig: a custom traverser context passes its visitor straight to `traverser.walk` with a `.whole_tree` option, in place of `traverser.Layer`, and its `enter` and `exit` take the node tag first (#275 by @arshad-yaseen)
+- Zig: `ast.JSXText.value` is removed, so decode `raw` with `lexical.decodeJSXEntities` (#276 by @arshad-yaseen)
+
+### Changes
+
+- `analyze` is 17 to 21% faster on large files, or 12 to 16% with `semanticErrors` (#273, #275 by @arshad-yaseen)
+- Identifiers that escape `$` or `_`, such as `$a`, parse (#270 by @arshad-yaseen)
+- Identifier checks in `yuku/ast`, such as `isIdentifierStart`, follow the same Unicode version as the parser on every runtime, instead of the runtime's own (#270 by @arshad-yaseen)
+- A decorator with type arguments parses before `export`, as in `@dec<T> export class A {}` (#277 by @arshad-yaseen)
+- `(): (void) => {}` reads `(void)` as the return type, and `type F = (this) => void` parses as a function type (#278 by @arshad-yaseen)
+- Zig: semantic analysis is 14 to 20% faster (#275 by @arshad-yaseen)
+- Zig: `parser.lexical` gives the lexer's rules for identifiers, keywords, line breaks, and escapes, including `isEvalOrArguments` (#270, #276 by @arshad-yaseen)
+- Zig: `tree.addComment` and `tree.moveComments` add and move a node's comments, `tree.hasComments` checks for them, and `tree.commentsIn` and `tree.tokensIn` return those within a span (#272, #276 by @arshad-yaseen)
+- Zig: `semantic.member` finds a member of a namespace or enum across its merged bodies (#275 by @arshad-yaseen)
+
 ## 0.20.1
 
 ### Changes
