@@ -130,6 +130,31 @@ test "every declared symbol is reachable through its scope's bindings" {
     }
 }
 
+test "member resolves a qualified name across merged bodies" {
+    var a = try helpers.analyze(
+        \\enum E { A }
+        \\enum E { B = 1 }
+        \\namespace E { export const x = 1; const y = 2; export type T = string; }
+        \\namespace Outer.Inner {}
+        \\const plain = 1;
+    , .{ .lang = .ts });
+    defer a.deinit();
+
+    const e = (try a.symbolNamed("E")).id;
+    for ([_][]const u8{ "A", "B", "x" }) |name| {
+        try testing.expectEqual((try a.symbolNamed(name)).id, a.sem.member(e, name, .value).?);
+    }
+    try testing.expectEqual((try a.symbolNamed("T")).id, a.sem.member(e, "T", .type).?);
+    try testing.expectEqual(@as(?SymbolId, null), a.sem.member(e, "T", .value));
+    try testing.expectEqual(@as(?SymbolId, null), a.sem.member(e, "y", .value));
+
+    const outer = (try a.symbolNamed("Outer")).id;
+    const inner = (try a.symbolNamed("Inner")).id;
+    try testing.expectEqual(inner, a.sem.member(outer, "Inner", .namespace).?);
+    const plain = (try a.symbolNamed("plain")).id;
+    try testing.expectEqual(@as(?SymbolId, null), a.sem.member(plain, "plain", .value));
+}
+
 const CtxProbeVisitor = struct {
     saw_probe: bool = false,
     saw_type_ref: bool = false,
@@ -221,6 +246,33 @@ test "the semantic Ctx exposes type position, namespace state, and the tracker" 
     try testing.expect(visitor.saw_probe);
     try testing.expect(visitor.saw_type_ref);
     if (visitor.failure) |err| return err;
+}
+
+const RootActionVisitor = struct {
+    action: traverser.Action,
+
+    pub fn enter_program(
+        self: *RootActionVisitor,
+        _: ast.Program,
+        _: ast.NodeIndex,
+        _: *traverser.semantic.Ctx,
+    ) traverser.Action {
+        return self.action;
+    }
+};
+
+test "a semantic walk models the whole tree when its visitor skips or stops" {
+    var tree = try parser.parse(testing.allocator, "function f() { let a; } f();", .{});
+    defer tree.deinit();
+    const want = try semantic.analyze(&tree, .{ .check = false });
+
+    for ([_]traverser.Action{ .skip, .stop }) |action| {
+        var visitor: RootActionVisitor = .{ .action = action };
+        const got = try traverser.semantic.traverse(RootActionVisitor, &tree, &visitor);
+        try testing.expectEqualDeep(want.scopes.list, got.scopes.list);
+        try testing.expectEqualDeep(want.symbols, got.symbols);
+        try testing.expectEqualDeep(want.references, got.references);
+    }
 }
 
 test "module records collect an export pattern of any depth" {
