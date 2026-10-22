@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { parse } from "yuku";
+import { fileURLToPath } from "node:url";
+import { parse, walk, type Node } from "yuku";
 import { decodeBase64 } from "../../packages/yuku/core/base64";
 
 const shipped = readFileSync(new URL("../../packages/yuku/dist/yuku.wasm", import.meta.url));
@@ -8,7 +9,10 @@ const shipped = readFileSync(new URL("../../packages/yuku/dist/yuku.wasm", impor
 test("the inlined module parses as the shipped yuku.wasm does", () => {
   const wasm = new WebAssembly.Module(shipped);
   const source = "const x: number = 1;";
-  expect(parse(source, { lang: "ts", wasm })).toEqual(parse(source, { lang: "ts" }));
+  const custom = parse(source, { lang: "ts", wasm });
+  const inlined = parse(source, { lang: "ts" });
+  expect(custom.program).toEqual(inlined.program);
+  expect(custom.diagnostics).toEqual(inlined.diagnostics);
 });
 
 test("workerd and edge-light import yuku.wasm in the form their bundlers compile", () => {
@@ -89,5 +93,55 @@ test("an empty source parses empty when the writer repeats its last count", () =
   } finally {
     TextEncoder.prototype.encodeInto = encodeInto;
     Buffer.prototype.write = write;
+  }
+});
+
+test("sources cross as UTF-16 with Buffer and as UTF-8 without, with the same results", () => {
+  const sources = [
+    "const café = '☕'; // ünïcödé\nlet 😀x = `𝒳${café}`, re = /é+/u;",
+    "/* 中文 */ import { 名 as n } from './模块'; export { n as 名前 };",
+    `const lone = "${String.fromCharCode(0xd800)}", after = lone;`,
+    "const a = <p title='ü'>Grüße {a} 👋</p>;",
+    "let é = ;",
+    "x".repeat(70) + "é\n" + "😀".repeat(40) + "\nlet z = 1;",
+  ];
+  const summarize = `(source) => {
+    const file = parse(source, { lang: "tsx", tokens: true, semantic: true, attachComments: true });
+    const tokens = [];
+    for (let i = 0; i < file.tokens.length; i++) {
+      tokens.push([file.tokens.start(i), file.tokens.end(i), file.tokens.text(i)]);
+    }
+    return {
+      program: file.program,
+      tokens,
+      comments: file.comments,
+      diagnostics: file.diagnostics,
+      bindings: file.bindings.map((binding) => binding.name),
+      references: file.references.map((reference) => [reference.name, reference.node.start]),
+      imports: file.imports.map((entry) => [entry.name, entry.specifier]),
+    };
+  }`;
+  const script = `globalThis.Buffer = undefined;
+    const { parse } = await import("yuku");
+    console.log(JSON.stringify(${JSON.stringify(sources)}.map(${summarize})));`;
+  const child = Bun.spawnSync(["bun", "--eval", script], {
+    cwd: fileURLToPath(new URL("../..", import.meta.url)),
+  });
+  expect(child.stderr.toString()).toBe("");
+  const summary = new Function("parse", `return ${summarize}`)(parse) as (source: string) => {
+    program: Node;
+    tokens: [number, number, string][];
+  };
+  const local = sources.map(summary);
+  expect(JSON.parse(child.stdout.toString())).toEqual(JSON.parse(JSON.stringify(local)));
+
+  for (const [index, source] of sources.entries()) {
+    const { program, tokens } = local[index]!;
+    for (const [start, end, text] of tokens) expect(source.slice(start, end)).toBe(text);
+    walk(program, {
+      Identifier(node) {
+        expect(source.slice(node.start, node.end)).toBe(node.name);
+      },
+    });
   }
 });

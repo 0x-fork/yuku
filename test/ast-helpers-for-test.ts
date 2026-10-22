@@ -1,4 +1,13 @@
-import type { Diagnostic } from "yuku";
+import {
+  is,
+  walk,
+  type AliasMap,
+  type AliasName,
+  type Diagnostic,
+  type Node,
+  type NodeOfType,
+  type NodeType,
+} from "yuku";
 
 const BIG_INT_PREFIX = "(BigInt) ";
 const REGEXP_PREFIX = "(RegExp) ";
@@ -215,7 +224,7 @@ export interface FormatDiagnosticsOptions {
 
 export function formatDiagnostics(
   source: string,
-  diagnostics: Diagnostic[],
+  diagnostics: readonly Diagnostic[],
   filename: string,
   options?: FormatDiagnosticsOptions,
 ): string {
@@ -276,4 +285,21 @@ export function formatDiagnostics(
   }
 
   return output.join("\n");
+}
+
+type NodeOfKind<K> = K extends AliasName ? AliasMap[K] : K extends NodeType ? NodeOfType<K> : never;
+
+export function nodesOf<K extends NodeType | AliasName>(
+  root: Node,
+  ...kinds: K[]
+): NodeOfKind<K>[] {
+  const byName = is as unknown as Record<string, (node: Node) => boolean>;
+  const guards = kinds.map((kind) => byName[kind]!);
+  const found: Node[] = [];
+  walk(root, {
+    enter(node) {
+      if (guards.some((guard) => guard(node))) found.push(node);
+    },
+  });
+  return found as NodeOfKind<K>[];
 }
