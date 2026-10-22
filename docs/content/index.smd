@@ -73,18 +73,18 @@ Measured on an Apple M3, with every tool doing the same work.
 
 Natively, Yuku parses faster than Oxc and SWC.
 
-![Parsing `typescript.js` (7.8 MB) natively · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-native)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-native/refs/heads/main/charts/typescript.png "Native benchmark comparing Yuku, Oxc, and SWC parsing typescript.js")
+![Parsing `typescript.js` (7.8 MB) natively · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-native)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-native/refs/heads/main/charts/typescript.svg "Native benchmark comparing Yuku, Oxc, and SWC parsing typescript.js")
 
 On npm, it parses faster than the alternatives, on small and large files.
 
-![Parsing `react.js` (70 KB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/react.png "npm benchmark comparing Yuku, Oxc, SWC, Babel, and Acorn parsing react.js")
+![Parsing `react.js` (70 KB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/react.svg "npm benchmark comparing Yuku, Oxc, SWC, Babel, and Acorn parsing react.js")
 
-![Parsing `typescript.js` (7.8 MB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/typescript.png "npm benchmark comparing Yuku, Oxc, SWC, Babel, and Acorn parsing typescript.js")
+![Parsing `typescript.js` (7.8 MB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/typescript.svg "npm benchmark comparing Yuku, Oxc, SWC, Babel, and Acorn parsing typescript.js")
 
 ### [Analyzer]($section.id('analyzer-performance'))
 
 Analyzing a whole codebase, resolving every reference and linking every import across files, Yuku is faster than typescript-eslint and the TypeScript API, and on a single large file too.
 
-![Analyzing three.js (755 files) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/three.png "npm benchmark comparing Yuku, TypeScript, and typescript-eslint analyzing three.js")
+![Analyzing three.js (755 files) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/three.svg "npm benchmark comparing Yuku, TypeScript, and typescript-eslint analyzing three.js")
 
-![Analyzing `typescript.js` (7.8 MB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/typescript_js.png "npm benchmark comparing Yuku, TypeScript, and typescript-eslint analyzing typescript.js")
+![Analyzing `typescript.js` (7.8 MB) on npm · [benchmark](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js)](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/typescript_js.svg "npm benchmark comparing Yuku, TypeScript, and typescript-eslint analyzing typescript.js")

@@ -576,15 +576,15 @@ const { code, map, diagnostics } = print(file, { strip: true, sourceMap: true })
 
 `yuku` parses faster than the alternatives on npm, on small and large files.
 
-![Parsing react.js (70 KB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/react.png)
+![Parsing react.js (70 KB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/react.svg)
 
-![Parsing typescript.js (7.8 MB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/typescript.png)
+![Parsing typescript.js (7.8 MB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-parser-benchmark-js/refs/heads/main/charts/typescript.svg)
 
 Analyzing a whole codebase, it is faster than typescript-eslint and the TypeScript API, and on a single large file too.
 
-![Analyzing three.js (755 files) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/three.png)
+![Analyzing three.js (755 files) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/three.svg)
 
-![Analyzing typescript.js (7.8 MB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/typescript_js.png)
+![Analyzing typescript.js (7.8 MB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/typescript_js.svg)
 
 Measured on an Apple M3, see the [parser](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js) and [analyzer](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js) benchmarks. Pass one `walk` all your visitors and patterns.
 
