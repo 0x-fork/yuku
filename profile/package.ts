@@ -6,6 +6,7 @@ import { Bench } from "tinybench";
 import {
   b,
   clone,
+  Core,
   js,
   parse,
   pattern,
@@ -41,6 +42,7 @@ const PATTERNS = [
 ];
 
 const wasm = new WebAssembly.Module(readFileSync(join("packages", "yuku", "dist", "yuku.wasm")));
+const core = new Core({ wasm });
 
 const bench = withCodSpeed(new Bench({ time: 1000, warmupTime: 250, throws: true }));
 
@@ -50,7 +52,7 @@ for (const path of FILES) {
   const typed = /\.tsx?$/.test(path);
 
   add(`parse ${name}`, () => parse(source, { path }));
-  add(`parse ${name} with WebAssembly`, () => parse(source, { path, wasm }));
+  add(`parse ${name} with WebAssembly`, () => parse(source, { path, core }));
   add(`decode ${name}`, () => {
     const file = parse(source, { path });
     void file.program;
@@ -72,7 +74,7 @@ for (const path of FILES) {
     return file;
   });
   add(`analyze ${name} with WebAssembly`, () => {
-    const file = parse(source, { path, semantic: true, wasm });
+    const file = parse(source, { path, semantic: true, core });
     void file.scopes;
     return file;
   });

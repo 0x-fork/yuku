@@ -1,9 +1,11 @@
 import type { ParseOptions } from "../file/source-file";
 import type { SourceLang, SourceType } from "../types";
-import { nativeBackend } from "#native";
-import { shippedModule, wasmBackend, type Dialect, type Shape } from "./wasm";
+import { addons } from "#native";
+import shipped from "#wasm";
+import { Core } from "./core";
+import type { Dialect, Shape } from "./wasm";
 
-/** What parses for the package, the Node-API addon or a WebAssembly instance. */
+/** A loaded core, its Node-API addon or a WebAssembly instance. */
 export interface Backend {
   readonly dialect: Dialect | null;
   run(entry: Entry, source: string, flags: number): ArrayBuffer;
@@ -27,6 +29,7 @@ const ATTACH_COMMENTS = 1 << 7;
 const TOKENS = 1 << 8;
 const DIALECT = 1 << 9;
 
+const shippedCore = new Core({ wasm: shipped, addons });
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const lossyUtf8 = new TextDecoder("utf-8", { ignoreBOM: true });
 
@@ -44,10 +47,7 @@ export function sourceText(source: string | Uint8Array): { text: string; malform
 }
 
 export function read(source: string, options: ParseOptions, entry: Entry): Read {
-  const backend =
-    options.wasm === undefined
-      ? (nativeBackend() ?? wasmBackend(shippedModule()))
-      : wasmBackend(options.wasm);
+  const backend = (options.core ?? shippedCore).backend();
   const path = options.path ?? "";
   const { dialect } = backend;
   const file = dialect === null || options.lang !== undefined ? undefined : fileOf(dialect, path);

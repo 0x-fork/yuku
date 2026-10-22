@@ -1,5 +1,5 @@
 declare module "#native" {
-  export function nativeBackend(): import("./read").Backend | null;
+  export const addons: import("./core").CoreOptions["addons"];
 }
 
 declare module "#wasm" {

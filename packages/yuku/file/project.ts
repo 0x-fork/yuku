@@ -1,3 +1,4 @@
+import type { Core } from "../core/core";
 import { BindingFlags } from "../core/decode";
 import type {
   CallExpression,
@@ -13,10 +14,10 @@ import { diagnosticAt, SourceFile, type FileOptions } from "./source-file";
 
 export interface ProjectOptions {
   /**
-   * A WebAssembly build of Yuku to analyze with in place of the native addon.
-   * @default the native addon where it loads, else the WebAssembly module yuku ships
+   * The Zig core to run, such as one with a dialect compiled in.
+   * @default the core yuku ships
    */
-  wasm?: WebAssembly.Module;
+  core?: Core;
   /**
    * Maps a specifier to a project file path, `false` for an external module, or `null` to warn
    * that it is unresolved. Defaults to relative paths probed as TypeScript does.
@@ -48,7 +49,7 @@ type ExportResolution = Resolution | typeof AMBIGUOUS | null;
 
 /** A set of files and the links between them. */
 export class Project {
-  private wasm: WebAssembly.Module | undefined;
+  private core: Core | undefined;
   private fileByPath = new Map<string, SourceFile>();
   private resolve: Resolve;
   private projectDiagnostics: Diagnostic[] = [];
@@ -61,7 +62,7 @@ export class Project {
   private importedBy = new Map<SourceFile, SourceFile[]>();
 
   constructor(options: ProjectOptions = {}) {
-    this.wasm = options.wasm;
+    this.core = options.core;
     this.resolve = options.resolve ?? defaultResolve(this.fileByPath);
   }
 
@@ -70,7 +71,7 @@ export class Project {
     if (typeof path !== "string" || path === "") {
       throw new TypeError("set: `path` must be a non-empty string");
     }
-    const file = new SourceFile(source, { ...options, path, wasm: this.wasm }, this);
+    const file = new SourceFile(source, { ...options, path, core: this.core }, this);
     this.fileByPath.set(path, file);
     this.dirty = true;
     return file;

@@ -7,6 +7,7 @@ A dialect adds your own syntax to JavaScript, TypeScript, or JSX, from a single 
 - [Analysis, walking, and lowering](#analysis-walking-and-lowering)
 - [Building](#building)
 - [From JavaScript](#from-javascript)
+- [Publishing a package](#publishing-a-package)
 
 ## Example
 
@@ -89,7 +90,7 @@ pub const files: []const dialect.File = &.{
 };
 ```
 
-Each entry is a file extension and the standard `lang` it extends. In Zig, a parse opts in with `.dialect = true`, which needs a build with a dialect compiled in, as `dialect.bound` tells. In JavaScript, the path picks the dialect, see [From JavaScript](#from-javascript).
+Each entry is a file extension and the standard `lang` it extends. In Zig, a parse opts in with `.dialect = true`, which needs a parser with a dialect compiled in, as `dialect.bound` tells. In JavaScript, the path picks the dialect, see [From JavaScript](#from-javascript).
 
 ### Positions
 
@@ -225,7 +226,7 @@ To compile your syntax to standard JavaScript, replace each of your nodes with s
 
 ## Building
 
-Pass the dialect file to the `yuku` dependency, which then holds that one dialect.
+Pass your dialect file to the `yuku` dependency, then build what each side needs.
 
 ```zig
 // build.zig
@@ -236,23 +237,28 @@ const yuku = b.dependency("yuku", .{
 });
 my_module.addImport("parser", yuku.module("parser"));
 
-b.installArtifact(@import("yuku").addWasm(b, yuku, "pipeline")); // zig-out/bin/pipeline.wasm
+b.installArtifact(@import("yuku").addWasm(b, yuku, "pipeline"));
+@import("yuku").addAddons(b, yuku);
 ```
 
-`addWasm(b, yuku, name)` builds a WebAssembly module like the one the `yuku` package ships: wasm32 with SIMD, optimized for speed, and stripped. Inside the Yuku repository, `zig build wasm -Ddialect=src/pipeline.zig` builds it as `zig-out/bin/yuku.wasm`.
+- `yuku.module("parser")` is the Zig parser with your dialect compiled in.
+- `addWasm(b, yuku, name)` builds `zig-out/bin/<name>.wasm`, the WebAssembly module the `yuku` package runs: wasm32 with SIMD, optimized for speed, and stripped.
+- `addAddons(b, yuku)` builds `zig-out/native/<platform>.node`, the Node-API addon for each platform the package ships, cross-compiled from any machine.
 
-A build without a dialect has no dialect code. With one, a standard file pays one flag check per position, and a dialect file one call.
+A core compiled without a dialect has no dialect code. With one, a standard file pays one flag check per position, and a dialect file one call. Inside the Yuku repository, `zig build wasm addon -Ddialect=src/pipeline.zig` builds the module and this platform's addon.
 
 ## From JavaScript
 
-Pass the build as the `wasm` option of `parse` or `new Project`, and every part of the package works with your nodes in the tree.
+Make a `Core` from the compiled module and pass it as the `core` option of `parse` or `new Project`. The core is the Zig part those run, so every part of the package then works with your nodes.
 
 ```js
 import { readFileSync } from "node:fs";
-import { parse, print } from "yuku";
+import { Core, parse, print } from "yuku";
 
 const wasm = new WebAssembly.Module(readFileSync("zig-out/bin/pipeline.wasm"));
-const file = parse("const total = prices |> sum(%);", { path: "app.pipe.js", wasm });
+const core = new Core({ wasm });
+
+const file = parse("const total = prices |> sum(%);", { path: "app.pipe.js", core });
 
 print(file, {
   printers: {
@@ -268,7 +274,9 @@ print(file, {
 });
 ```
 
-A path ending in one of your extensions parses with the dialect, a source with no path uses the first, and any other path, or an explicit `lang`, reads as standard syntax. `printers` takes the same calls as `print` in Zig.
+- A path ending in one of your extensions parses with the dialect, and a source with no path uses the first.
+- Any other path, or an explicit `lang`, parses as standard syntax.
+- `printers` takes the same calls as `print` in Zig.
 
 Declare your nodes in `DialectNodes` to type them in TypeScript.
 
@@ -283,15 +291,62 @@ declare module "yuku" {
 }
 ```
 
-A dialect's own package depends on `yuku`, ships the build, and passes it for its users.
+## Publishing a package
+
+A dialect's package ships its core, so its users call `parse` without one.
 
 ```ts
 import { parse as parseYuku, type ParseOptions, type SourceFile } from "yuku";
-import { pipeline } from "#module";
+import { pipeline } from "#core";
 
-export function parse(source: string, options: Omit<ParseOptions, "wasm"> = {}): SourceFile {
-  return parseYuku(source, { ...options, wasm: pipeline });
+export function parse(source: string, options: Omit<ParseOptions, "core"> = {}): SourceFile {
+  return parseYuku(source, { ...options, core: pipeline });
 }
 ```
 
-To load the build in every runtime, follow `yuku`'s own [loaders](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku/core/wasm): inline the bytes by default, and import the `.wasm` file in Cloudflare Workers and Vercel Edge, which cannot compile WebAssembly from bytes.
+`#core` gives each runtime its own core, from `package.json`.
+
+```json
+"imports": {
+  "#core": {
+    "workerd": "./dist/core/workerd.js",
+    "edge-light": "./dist/core/workerd.js",
+    "node": "./dist/core/node.js",
+    "default": "./dist/core/default.js"
+  }
+}
+```
+
+| Core              | Runtimes                         | Runs                                                       |
+| ----------------- | -------------------------------- | ---------------------------------------------------------- |
+| `core/node.ts`    | Node.js, Bun, and Deno           | The addon, and the WebAssembly where no addon loads        |
+| `core/workerd.ts` | Cloudflare Workers, Vercel Edge  | The `.wasm` file, since these cannot compile it from bytes |
+| `core/default.ts` | Browsers and every other runtime | The WebAssembly, inlined in base64                         |
+
+```ts
+// core/default.ts
+import { Core } from "yuku";
+import wasm from "../pipeline.wasm"; // in base64, from your bundler
+
+export const pipeline = new Core({ wasm });
+```
+
+```ts
+// core/node.ts
+import { Core } from "yuku";
+import wasm from "../pipeline.wasm";
+
+export const pipeline = new Core({
+  wasm,
+  addons: {
+    "darwin-arm64": () => new URL("../native/darwin-arm64.node", import.meta.url),
+    "darwin-x64": () => new URL("../native/darwin-x64.node", import.meta.url),
+    "linux-arm64": () => new URL("../native/linux-arm64.node", import.meta.url),
+    "linux-x64": () => new URL("../native/linux-x64.node", import.meta.url),
+    "win32-arm64": () => new URL("../native/win32-arm64.node", import.meta.url),
+    "win32-x64": () => new URL("../native/win32-x64.node", import.meta.url),
+  },
+});
+```
+
+Write each addon's URL as its own literal, as above, so bundlers and deploy tracers find the binaries. [yuku-tsrx](https://github.com/yuku-toolchain/yuku-tsrx) is a complete package built this way.

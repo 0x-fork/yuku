@@ -1,3 +1,4 @@
+import type { Core } from "../core/core";
 import { decode, type Decoded } from "../core/decode";
 import { read, sourceText } from "../core/read";
 import { lineOf, lineStarts } from "../print/sourcemap";
@@ -50,10 +51,10 @@ export interface ParseOptions extends FileOptions {
   /** The file path, which `lang`, `sourceType` and the dialect default from. */
   path?: string;
   /**
-   * A WebAssembly build of Yuku to parse with in place of the native addon.
-   * @default the native addon where it loads, else the WebAssembly module yuku ships
+   * The Zig core to run, such as one with a dialect compiled in.
+   * @default the core yuku ships
    */
-  wasm?: WebAssembly.Module;
+  core?: Core;
 }
 
 /** `line` is 1-based, `column` 0-based in UTF-16 code units. */

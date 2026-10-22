@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parse, walk, type Node } from "yuku";
+import { Core, parse, walk, type Node } from "yuku";
 import { decodeBase64 } from "../../packages/yuku/core/base64";
 
 const shipped = readFileSync(new URL("../../packages/yuku/dist/yuku.wasm", import.meta.url));
 
 test("the inlined module parses as the shipped yuku.wasm does", () => {
-  const wasm = new WebAssembly.Module(shipped);
+  const core = new Core({ wasm: new WebAssembly.Module(shipped) });
   const source = "const x: number = 1;";
-  const custom = parse(source, { lang: "ts", wasm });
+  const custom = parse(source, { lang: "ts", core });
   const inlined = parse(source, { lang: "ts" });
   expect(custom.program).toEqual(inlined.program);
   expect(custom.diagnostics).toEqual(inlined.diagnostics);
@@ -34,7 +34,7 @@ test("the JavaScript base64 decoder matches Buffer", () => {
 });
 
 test("grown memory is released once it stops growing for ten seconds", () => {
-  const wasm = new WebAssembly.Module(shipped);
+  const core = new Core({ wasm: new WebAssembly.Module(shipped) });
   const Instance = WebAssembly.Instance;
   const now = Date.now;
   const made: WebAssembly.Instance[] = [];
@@ -49,22 +49,22 @@ test("grown memory is released once it stops growing for ten seconds", () => {
     (instance.exports.memory as WebAssembly.Memory).buffer.byteLength;
   const large = "a = b + c;\n".repeat(100_000);
   try {
-    expect(parse(large, { wasm }).program.body).toHaveLength(100_000);
+    expect(parse(large, { core }).program.body).toHaveLength(100_000);
     expect(made).toHaveLength(1);
     expect(bytesOf(made[0]!)).toBeGreaterThan(128 * 1024 * 1024);
 
     for (let round = 0; round < 3; round++) {
-      expect(parse("a;", { wasm }).program.body).toHaveLength(1);
-      expect(parse(large, { wasm }).program.body).toHaveLength(100_000);
+      expect(parse("a;", { core }).program.body).toHaveLength(1);
+      expect(parse(large, { core }).program.body).toHaveLength(100_000);
     }
     expect(made).toHaveLength(1);
 
     clock += 10_000;
-    expect(parse("a;", { wasm }).program.body).toHaveLength(1);
+    expect(parse("a;", { core }).program.body).toHaveLength(1);
     expect(made).toHaveLength(1);
 
     clock += 1;
-    expect(parse("a;", { wasm }).program.body).toHaveLength(1);
+    expect(parse("a;", { core }).program.body).toHaveLength(1);
     expect(made).toHaveLength(2);
     expect(bytesOf(made[1]!)).toBeLessThan(128 * 1024 * 1024);
   } finally {
@@ -86,11 +86,11 @@ test("an empty source parses empty when the writer repeats its last count", () =
     if (args[0]) wrote = write.apply(this, args);
     return wrote;
   } as typeof write;
-  const wasm = new WebAssembly.Module(shipped);
+  const core = new Core({ wasm: new WebAssembly.Module(shipped) });
   try {
-    expect(parse("const answer = 42;", { wasm }).program.body).toHaveLength(1);
-    expect(parse("", { wasm }).program.body).toEqual([]);
-    expect(parse("", { wasm }).diagnostics).toEqual([]);
+    expect(parse("const answer = 42;", { core }).program.body).toHaveLength(1);
+    expect(parse("", { core }).program.body).toEqual([]);
+    expect(parse("", { core }).diagnostics).toEqual([]);
   } finally {
     TextEncoder.prototype.encodeInto = encodeInto;
     Buffer.prototype.write = write;
@@ -107,7 +107,7 @@ test("sources cross as UTF-16 with Buffer and as UTF-8 without, with the same re
     "x".repeat(70) + "é\n" + "😀".repeat(40) + "\nlet z = 1;",
   ];
   const summarize = `(source) => {
-    const options = { lang: "tsx", tokens: true, semantic: true, attachComments: true, wasm };
+    const options = { lang: "tsx", tokens: true, semantic: true, attachComments: true, core };
     const file = parse(source, options);
     const tokens = [];
     for (let i = 0; i < file.tokens.length; i++) {
@@ -126,15 +126,16 @@ test("sources cross as UTF-16 with Buffer and as UTF-8 without, with the same re
   const wasmPath = fileURLToPath(new URL("../../packages/yuku/dist/yuku.wasm", import.meta.url));
   const script = `globalThis.Buffer = undefined;
     const { readFileSync } = await import("node:fs");
+    const { Core, parse } = await import("yuku");
     const wasm = new WebAssembly.Module(readFileSync(${JSON.stringify(wasmPath)}));
-    const { parse } = await import("yuku");
+    const core = new Core({ wasm });
     console.log(JSON.stringify(${JSON.stringify(sources)}.map(${summarize})));`;
   const child = Bun.spawnSync(["bun", "--eval", script], {
     cwd: fileURLToPath(new URL("../..", import.meta.url)),
   });
   expect(child.stderr.toString()).toBe("");
-  const wasm = new WebAssembly.Module(shipped);
-  const summary = new Function("parse", "wasm", `return ${summarize}`)(parse, wasm) as (
+  const core = new Core({ wasm: new WebAssembly.Module(shipped) });
+  const summary = new Function("parse", "core", `return ${summarize}`)(parse, core) as (
     source: string,
   ) => {
     program: Node;

@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parse, type ParseOptions, type SourceFile } from "yuku";
+import { Core, parse, type ParseOptions, type SourceFile } from "yuku";
 import { astDiffPath } from "../ast-helpers-for-test";
 import { corpusAndProjectFiles, corpusPresent, forEachCorpusFile } from "../corpus";
 
@@ -9,6 +9,7 @@ const dist = new URL("../../packages/yuku/dist/", import.meta.url);
 const addon = `native/${process.platform}-${process.arch}.node`;
 const shipsAddon = existsSync(new URL(addon, dist));
 const wasm = new WebAssembly.Module(readFileSync(new URL("yuku.wasm", dist)));
+const core = new Core({ wasm });
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const SAMPLE_MAX = 8;
 const SEMANTIC_EVERY = 8;
@@ -55,7 +56,7 @@ function semanticOf(file: SourceFile): unknown {
 
 function agrees(source: string, options: ParseOptions): string | null {
   const native = summary(parse(source, options), options);
-  const fallback = summary(parse(source, { ...options, wasm }), options);
+  const fallback = summary(parse(source, { ...options, core }), options);
   return astDiffPath(native, fallback, "result");
 }
 

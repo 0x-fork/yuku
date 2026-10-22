@@ -10,6 +10,7 @@ export {
   type SourceFile,
 } from "./file/source-file";
 export { langFromPath, sourceTypeFromPath } from "./core/read";
+export { Core, type CoreOptions, type Platform } from "./core/core";
 
 /** Every token kind by name. */
 export const TokenKind: TokenKindMap = tokenKind;

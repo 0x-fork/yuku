@@ -1,4 +1,3 @@
-import shipped from "#wasm";
 import type { SourceLang } from "../types";
 import { decodeBase64 } from "./base64";
 import { addChildKeys } from "./child-keys";
@@ -56,14 +55,8 @@ const NodeBuffer: NodeBufferConstructor | undefined =
   (globalThis as NodeGlobals).process?.versions?.node === undefined
     ? undefined
     : (globalThis as NodeGlobals).Buffer;
-let compiled: WebAssembly.Module | null = null;
-
-/** The WebAssembly module the package ships, compiled on first use. */
-export function shippedModule(): WebAssembly.Module {
-  if (compiled === null) {
-    compiled = typeof shipped === "string" ? new WebAssembly.Module(bytesOf(shipped)) : shipped;
-  }
-  return compiled;
+export function compile(wasm: WebAssembly.Module | string): WebAssembly.Module {
+  return typeof wasm === "string" ? new WebAssembly.Module(bytesOf(wasm)) : wasm;
 }
 
 /** The instance of `module` that parses for the package, made on first use. */
@@ -128,7 +121,10 @@ function dialectOf(exports: Exports): Dialect | null {
   const pointer = exports.dialect();
   if (pointer === 0) return null;
   const size = new DataView(exports.memory.buffer).getUint32(pointer, true);
-  const json = utf8.decode(new Uint8Array(exports.memory.buffer, pointer + 4, size));
+  return parseDialect(utf8.decode(new Uint8Array(exports.memory.buffer, pointer + 4, size)));
+}
+
+export function parseDialect(json: string): Dialect {
   const dialect = JSON.parse(json) as Dialect;
   for (const shape of dialect.shapes) addChildKeys(shape.type, shape.fields);
   return dialect;

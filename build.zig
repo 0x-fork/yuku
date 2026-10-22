@@ -121,11 +121,17 @@ pub fn build(b: *std.Build) void {
         .dependOn(&b.addInstallArtifact(yuku_wasm, .{}).step);
 
     const addons = b.step("native", "Build the Node-API addon for each platform the package ships");
+    const addon_step = b.step("addon", "Install the Node-API addon for this platform in native/");
     var host_addon: ?*std.Build.Step = null;
     for (native_platforms) |platform| {
+        var query = platform.query;
+        query.cpu_model = .baseline;
+        const module_name = b.fmt("parser-{s}", .{platform.name});
+        _ = config.add(b, module_name, createUtil(b, b.resolveTargetQuery(query), .fast), dialect);
+        const addon = addAddonFrom(b, b, platform.name);
         const addon_files = b.addUpdateSourceFiles();
         addon_files.addCopyFileToSource(
-            addAddon(b, config, platform.query).getEmittedBin(),
+            addon.getEmittedBin(),
             b.fmt("packages/yuku/native/{s}.node", .{platform.name}),
         );
         addons.dependOn(&addon_files.step);
@@ -133,6 +139,7 @@ pub fn build(b: *std.Build) void {
         if (platform.query.os_tag == host.os.tag and platform.query.cpu_arch == host.cpu.arch) {
             std.debug.assert(host_addon == null);
             host_addon = &addon_files.step;
+            addon_step.dependOn(&installAddon(b, addon, platform.name).step);
         }
     }
 
@@ -201,17 +208,23 @@ const native_platforms = [_]struct { name: []const u8, query: std.Target.Query }
     .{ .name = "win32-x64", .query = .{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu } },
 };
 
-fn addAddon(b: *std.Build, config: ParserConfig, query: std.Target.Query) *std.Build.Step.Compile {
-    var baseline = query;
-    baseline.cpu_model = .baseline;
-    const target = b.resolveTargetQuery(baseline);
-    const parser = config.add(b, null, createUtil(b, target, .fast), null);
+/// Builds the Node-API addon for each platform the `yuku` package ships, with the dialect the
+/// `yuku` dependency compiles in, and installs each as `native/<platform>.node`.
+pub fn addAddons(b: *std.Build, yuku: *std.Build.Dependency) void {
+    for (native_platforms) |platform| {
+        const addon = addAddonFrom(b, yuku.builder, platform.name);
+        b.getInstallStep().dependOn(&installAddon(b, addon, platform.name).step);
+    }
+}
+
+fn addAddonFrom(b: *std.Build, yuku: *std.Build, platform: []const u8) *std.Build.Step.Compile {
+    const parser = yuku.modules.get(b.fmt("parser-{s}", .{platform})).?;
     const addon = b.addLibrary(.{
         .name = "yuku",
         .linkage = .dynamic,
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/parser/ffi/napi.zig"),
-            .target = target,
+            .root_source_file = yuku.path("src/parser/ffi/napi.zig"),
+            .target = parser.resolved_target.?,
             .optimize = .fast,
             .strip = true,
             .imports = &.{.{ .name = "parser", .module = parser }},
@@ -219,6 +232,15 @@ fn addAddon(b: *std.Build, config: ParserConfig, query: std.Target.Query) *std.B
     });
     addon.linker_allow_shlib_undefined = true;
     return addon;
+}
+
+fn installAddon(
+    b: *std.Build,
+    addon: *std.Build.Step.Compile,
+    platform: []const u8,
+) *std.Build.Step.InstallFile {
+    const path = b.fmt("native/{s}.node", .{platform});
+    return b.addInstallFileWithDir(addon.getEmittedBin(), .prefix, path);
 }
 
 const ParserConfig = struct {

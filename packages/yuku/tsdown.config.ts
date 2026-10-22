@@ -3,7 +3,7 @@ import { defineConfig } from "tsdown";
 export default defineConfig({
   entry: {
     index: "index.ts",
-    "native/load": "core/native/load.ts",
+    "native/addons": "core/native/addons.ts",
     "native/none": "core/native/none.ts",
     "wasm/inline": "core/wasm/inline.ts",
     "wasm/import": "core/wasm/import.ts",

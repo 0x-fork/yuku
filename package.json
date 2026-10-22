@@ -24,7 +24,7 @@
     "test:codegen": "bun run --cwd packages/yuku build && zig build codegen-reference && bun test test/codegen",
     "test:ast": "bun test test/ast",
     "test:analyzer": "bun test test/analyzer",
-    "test:dialect": "zig build wasm -Ddialect=src/parser/testing/dialect.zig --prefix zig-out/dialect && bun test test/dialect",
+    "test:dialect": "zig build wasm addon -Ddialect=src/parser/testing/dialect.zig --prefix zig-out/dialect && bun test test/dialect",
     "test:runtime": "bun build ./test/runtime/smoke.ts --target=node --packages=external --outfile=zig-out/runtime-smoke.mjs && node zig-out/runtime-smoke.mjs",
     "test:sourcemap": "bun test/sourcemap/run.ts",
     "test:tools": "zig build test-tools",

@@ -73,7 +73,7 @@ comptime {
     if (bound and (!@hasDecl(Bound, "files") or Bound.files.len == 0)) {
         @compileError("a dialect lists the `files` it parses");
     }
-    // the shapes compile only into the description, which a native build never reads
+    // the shapes compile only into the description, which a Zig-only build never reads
     if (@hasDecl(Bound, "Node")) _ = shapesJson();
 }
 

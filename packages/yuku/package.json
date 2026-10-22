@@ -23,7 +23,7 @@
   },
   "imports": {
     "#native": {
-      "node": "./dist/native/load.js",
+      "node": "./dist/native/addons.js",
       "default": "./dist/native/none.js"
     },
     "#wasm": {
