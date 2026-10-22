@@ -2,6 +2,12 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.22.1
+
+### Changes
+
+- Node.js, Bun, and Deno with `--allow-ffi` run Yuku natively on macOS, Linux, and Windows, for x64 and arm64, parsing a whole project 27 to 34% faster with up to 35% less peak memory, and everything else keeps running WebAssembly (#283 by @arshad-yaseen)
+
 ## 0.22.0
 
 ### Breaking
