@@ -1,5 +1,5 @@
 const std = @import("std");
-const ast = @import("ast.zig");
+const ast = @import("parser").ast;
 
 pub const PropName = struct {
     name: []const u8,
@@ -23,8 +23,6 @@ pub fn propName(tree: *const ast.Tree, key: ast.NodeIndex) ?PropName {
 }
 
 /// https://tc39.es/ecma262/#sec-static-semantics-containsexpression
-///
-/// The first default initializer or computed key in a parameter list.
 pub fn findParameterExpression(tree: *const ast.Tree, params: ast.FormalParameters) ?ast.NodeIndex {
     for (tree.extra(params.items)) |param_idx| {
         const pattern = switch (tree.data(param_idx)) {
@@ -39,8 +37,6 @@ pub fn findParameterExpression(tree: *const ast.Tree, params: ast.FormalParamete
 }
 
 /// https://tc39.es/ecma262/#sec-static-semantics-containsexpression
-///
-/// The first expression contained in one binding pattern. Safe to call with `.null`.
 pub fn findPatternExpression(tree: *const ast.Tree, pattern: ast.NodeIndex) ?ast.NodeIndex {
     if (pattern == .null) return null;
     switch (tree.data(pattern)) {
@@ -64,6 +60,22 @@ pub fn findPatternExpression(tree: *const ast.Tree, pattern: ast.NodeIndex) ?ast
             }
             // a BindingRestProperty is always `...BindingIdentifier`
             return null;
+        },
+        else => return null,
+    }
+}
+
+/// The value of a string literal, or of a template literal without substitutions.
+pub fn stringLiteralLike(tree: *const ast.Tree, node: ast.NodeIndex) ?ast.String {
+    std.debug.assert(node != .null);
+    switch (tree.data(node)) {
+        .string_literal => |literal| return literal.value,
+        .template_literal => |template| {
+            if (template.expressions.len > 0) return null;
+            std.debug.assert(template.quasis.len == 1);
+            const quasi = tree.data(tree.extra(template.quasis)[0]).template_element;
+            if (quasi.is_cooked_undefined) return null;
+            return quasi.cooked;
         },
         else => return null,
     }

@@ -10,6 +10,7 @@ const keyword_length_max = @import("token.zig").keyword_length_max;
 const ast = @import("ast.zig");
 const lexical = @import("lexical.zig");
 const util = @import("util");
+const spec = @import("spec");
 const Simd = util.Simd;
 
 pub const LexicalError = error{
@@ -17,9 +18,6 @@ pub const LexicalError = error{
     NonTerminatedTemplateLiteral,
     UnterminatedRegexLiteral,
     InvalidRegexLineTerminator,
-    InvalidRegexFlag,
-    DuplicateRegexFlag,
-    IncompatibleRegexFlags,
     InvalidIdentifierStart,
     InvalidIdentifierContinue,
     UnterminatedMultiLineComment,
@@ -474,7 +472,7 @@ pub const Lexer = struct {
     }
 
     inline fn isLineTerminator(self: *const Lexer) bool {
-        return util.Utf.lineBreakLen(self.source, self.cursor) > 0;
+        return spec.line_terminators.lineBreakLen(self.source, self.cursor) > 0;
     }
 
     /// Scans the `template_middle` or `template_tail` that starts at the `}` closing
@@ -556,24 +554,7 @@ pub const Lexer = struct {
             if (c == '/' and !in_class) {
                 self.cursor += 1;
                 const flags_start = self.cursor;
-
-                var flags_seen: u32 = 0;
-                while (std.ascii.isAlphabetic(self.peek(0))) : (self.cursor += 1) {
-                    const flag = self.peek(0);
-                    switch (flag) {
-                        'g', 'i', 'm', 's', 'u', 'y', 'd', 'v' => {},
-                        else => return error.InvalidRegexFlag,
-                    }
-                    const flag_bit = @as(u32, 1) << @intCast(flag - 'a');
-                    if (flags_seen & flag_bit != 0) return error.DuplicateRegexFlag;
-                    flags_seen |= flag_bit;
-                }
-
-                const u_bit = @as(u32, 1) << ('u' - 'a');
-                const v_bit = @as(u32, 1) << ('v' - 'a');
-                if (flags_seen & u_bit != 0 and flags_seen & v_bit != 0) {
-                    return error.IncompatibleRegexFlags;
-                }
+                try self.reScanAsRegexFlags();
 
                 return .{
                     .span = .{ .start = start, .end = self.cursor },
@@ -585,6 +566,24 @@ pub const Lexer = struct {
             self.cursor += 1;
         }
         return error.UnterminatedRegexLiteral;
+    }
+
+    fn reScanAsRegexFlags(self: *Lexer) LexicalError!void {
+        const src = self.source;
+        const flags_start = self.cursor;
+        while (self.cursor < src.len) {
+            const c = src[self.cursor];
+            if (identifier_char_ascii[c]) {
+                self.cursor += 1;
+                continue;
+            }
+            if (c < 0x80) break;
+            const cp = try util.Utf.codePointAt(src, self.cursor);
+            if (!lexical.isIdentifierChar(cp.value)) break;
+            self.cursor += cp.len;
+        }
+        std.debug.assert(self.cursor >= flags_start);
+        std.debug.assert(self.cursor <= src.len);
     }
 
     fn scanString(self: *Lexer) LexicalError!Token {
@@ -754,20 +753,23 @@ pub const Lexer = struct {
                     self.cursor += 1;
                 }
             },
-            else => self.cursor += @max(1, util.Utf.unicodeSeparatorLen(self.source, self.cursor)),
+            else => self.cursor += @max(1, spec.line_terminators.unicodeSeparatorLen(
+                self.source,
+                self.cursor,
+            )),
         }
     }
 
     fn consumeOctal(self: *Lexer) LexicalError!void {
         std.debug.assert(self.cursor < self.source.len);
-        const result = util.Utf.parseOctal(self.source, self.cursor);
+        const result = spec.escapes.parseOctal(self.source, self.cursor);
         std.debug.assert(result.end > self.cursor);
         self.cursor = @intCast(result.end);
     }
 
     fn consumeHex(self: *Lexer) LexicalError!void {
         std.debug.assert(self.cursor < self.source.len);
-        const r = util.Utf.parseHex2(self.source, self.cursor + 1) orelse
+        const r = spec.escapes.parseHex2(self.source, self.cursor + 1) orelse
             return error.InvalidHexEscape;
         std.debug.assert(r.end >= self.cursor + 1);
         self.cursor = @intCast(r.end);
@@ -788,7 +790,7 @@ pub const Lexer = struct {
         }
         self.setTokenFlag(.escaped);
 
-        const parsed = util.Utf.parseUnicodeEscape(self.source, self.cursor + 1) orelse
+        const parsed = spec.escapes.parseUnicodeEscape(self.source, self.cursor + 1) orelse
             return error.InvalidUnicodeEscape;
         switch (context) {
             .identifier_start => {
@@ -913,7 +915,8 @@ pub const Lexer = struct {
         while (i < lexeme.len) {
             if (out == buf.len) return .identifier;
             if (lexeme[i] == '\\' and i + 1 < lexeme.len and lexeme[i + 1] == 'u') {
-                const parsed = util.Utf.parseUnicodeEscape(lexeme, i + 2) orelse return .identifier;
+                const parsed = spec.escapes.parseUnicodeEscape(lexeme, i + 2) orelse
+                    return .identifier;
                 if (parsed.value >= 0x80) return .identifier;
                 buf[out] = @intCast(parsed.value);
                 out += 1;
@@ -948,7 +951,7 @@ pub const Lexer = struct {
                 'o', 'O' => {
                     tag = .octal_literal;
                     try self.consumeRadixDigits(
-                        util.Utf.isOctalDigit,
+                        isOctalDigit,
                         error.InvalidOctalLiteralDigit,
                     );
                 },
@@ -1043,6 +1046,10 @@ pub const Lexer = struct {
 
     fn isBinaryDigit(c: u8) bool {
         return c == '0' or c == '1';
+    }
+
+    fn isOctalDigit(c: u8) bool {
+        return c >= '0' and c <= '7';
     }
 
     fn consumeExponent(self: *Lexer) LexicalError!void {
@@ -1150,7 +1157,7 @@ pub const Lexer = struct {
                 },
                 .non_ascii => {
                     @branchHint(.unlikely);
-                    const us_len = util.Utf.unicodeSeparatorLen(src, pos);
+                    const us_len = spec.line_terminators.unicodeSeparatorLen(src, pos);
                     if (us_len > 0) {
                         self.setTokenFlag(.line_terminator_before);
                         can_be_html_close_comment = true;
@@ -1206,7 +1213,7 @@ pub const Lexer = struct {
             if (pos >= src.len) break;
             const c = src[pos];
             if (c == '\n' or c == '\r') break;
-            if (c == 0xE2 and util.Utf.unicodeSeparatorLen(src, pos) > 0) break;
+            if (c == 0xE2 and spec.line_terminators.unicodeSeparatorLen(src, pos) > 0) break;
             pos += 1;
         }
         self.cursor = pos;
@@ -1238,7 +1245,7 @@ pub const Lexer = struct {
                     break;
                 },
                 0x80...0xFF => {
-                    const lt_len = util.Utf.unicodeSeparatorLen(src, pos);
+                    const lt_len = spec.line_terminators.unicodeSeparatorLen(src, pos);
                     if (lt_len > 0) {
                         self.setTokenFlag(.line_terminator_before);
                         pos += lt_len;
@@ -1325,10 +1332,6 @@ pub fn getLexicalErrorMessage(error_type: LexicalError) []const u8 {
         error.UnterminatedRegexLiteral => "Unterminated regular expression literal",
         error.InvalidRegexLineTerminator => "Line terminator not allowed in regular expression" ++
             " literal",
-        error.InvalidRegexFlag => "Invalid regular expression flag",
-        error.DuplicateRegexFlag => "Duplicate regular expression flag",
-        error.IncompatibleRegexFlags => "The 'u' and 'v' regular expression flags cannot be" ++
-            " used together",
         error.InvalidIdentifierStart => "Invalid character at start of identifier",
         error.InvalidIdentifierContinue => "Invalid character in identifier",
         error.UnterminatedMultiLineComment => "Unterminated multi-line comment",
@@ -1363,12 +1366,6 @@ pub fn getLexicalErrorHelp(error_type: LexicalError) []const u8 {
             " followed by flags (g, i, m, etc.)",
         error.InvalidRegexLineTerminator => "Try removing the line break here or escaping" ++
             " it within the regex pattern",
-        error.InvalidRegexFlag => "Valid regex flags are: `g` (global), `i` (ignoreCase)," ++
-            " `m` (multiline), `s` (dotAll), `u` (unicode), `y` (sticky), `d` (hasIndices)," ++
-            " `v` (setNotation)",
-        error.DuplicateRegexFlag => "Remove the duplicate flag; each flag can only appear once",
-        error.IncompatibleRegexFlags => "The 'u' (unicode) and 'v' (unicodeSets) flags are" ++
-            " mutually exclusive; use one or the other",
         error.InvalidIdentifierStart => "Try starting the identifier here with a letter" ++
             " (a-z, A-Z), underscore (_), or dollar sign ($)",
         error.InvalidIdentifierContinue => "Try using a valid identifier character here" ++

@@ -69,11 +69,50 @@ pub fn parseRegExpLiteral(parser: *Parser) Error!?ast.NodeIndex {
     const pattern_start = regex.span.start + 1;
     const pattern_end = pattern_start + @as(u32, @intCast(regex.pattern.len));
     const flags_start = regex.span.end - @as(u32, @intCast(regex.flags.len));
+    try parseRegExpLiteralFlags(parser, flags_start, regex.flags);
 
     return try parser.tree.addNode(.{ .regexp_literal = .{
         .pattern = parser.tree.sourceSlice(pattern_start, pattern_end),
         .flags = parser.tree.sourceSlice(flags_start, regex.span.end),
     } }, regex.span);
+}
+
+fn parseRegExpLiteralFlags(parser: *Parser, flags_start: u32, flags: []const u8) Error!void {
+    std.debug.assert(flags_start + flags.len <= parser.source.len);
+    const unicode_modes = regExpFlagBit('u') | regExpFlagBit('v');
+    var seen: u32 = 0;
+    var index: u32 = 0;
+    while (index < flags.len) {
+        const len: u32 = std.unicode.utf8ByteSequenceLength(flags[index]) catch unreachable;
+        const span: ast.Span = .{ .start = flags_start + index, .end = flags_start + index + len };
+        const bit = regExpFlagBit(flags[index]);
+        index += len;
+
+        if (bit == 0) {
+            try parser.report(span, "Invalid regular expression flag", .{
+                .help = "Valid flags are `d`, `g`, `i`, `m`, `s`, `u`, `v`, and `y`.",
+            });
+        } else if (seen & bit != 0) {
+            try parser.report(span, "Duplicate regular expression flag", .{
+                .help = "Each flag can appear only once.",
+            });
+        } else if ((seen | bit) & unicode_modes == unicode_modes) {
+            try parser.report(
+                span,
+                "The 'u' and 'v' regular expression flags cannot be used together",
+                .{ .help = "Use `v`, which extends `u`, or `u` alone." },
+            );
+        }
+        seen |= bit;
+    }
+    std.debug.assert(index == flags.len);
+}
+
+fn regExpFlagBit(flag: u8) u32 {
+    return switch (flag) {
+        'd', 'g', 'i', 'm', 's', 'u', 'v', 'y' => @as(u32, 1) << @intCast(flag - 'a'),
+        else => 0,
+    };
 }
 
 pub fn parseNoSubstitutionTemplate(parser: *Parser, tagged: bool) Error!?ast.NodeIndex {
