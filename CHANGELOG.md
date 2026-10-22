@@ -2,6 +2,45 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.22.0
+
+### Breaking
+
+- Everything imports from `yuku`. `yuku/analyzer`, `yuku/ast`, `yuku/codegen`, and `yuku/types` are removed, and their exports keep their names unless a line below says otherwise (#282 by @arshad-yaseen)
+- `parse` returns a `SourceFile` in place of `ParseResult`, and reading `tokens` without `tokens: true` throws instead of returning `undefined` (#282 by @arshad-yaseen)
+- `analyze(source)` is `parse(source, { semantic: true })`, which puts scopes, bindings, references, imports, and exports on the same `SourceFile`. `Module` is `SourceFile`, `module.ast` is `file.program`, and reading the semantic model without `semantic: true` throws (#282 by @arshad-yaseen)
+- `Analyzer` is `Project`, with `set` in place of `setFile`, `delete` in place of `deleteFile`, and `files` in place of `modules` and `module(path)`. `link()` is removed, since queries relink as needed, and `AnalyzerOptions` and `SetFileOptions` are `ProjectOptions` and `FileOptions` (#282 by @arshad-yaseen)
+- Scopes, bindings, references, imports, exports, and definitions have `file` in place of `module`, and imports and exports have `resolvedFile` in place of `resolvedModule` (#282 by @arshad-yaseen)
+- `module.lookup` is `scope.lookup`, and `module.walk` and `module.findAll` are removed, so use `walk` with `file.scopeOf`, `file.bindingOf`, and `file.referenceOf` (#282 by @arshad-yaseen)
+- `unresolvedReferences`, `binding.hasAll`, `import.isNamespace`, and `export.globalName` are removed. Filter `file.references` by `binding === null`, test `binding.flags`, and read `import.kind` and `export.name` instead (#282 by @arshad-yaseen)
+- `walk` takes no state argument and returns nothing, and its context has no `node` or `state`, so keep state in your handlers' scope (#282 by @arshad-yaseen)
+- `walkAsync` is removed. Collect the nodes in one walk, await the work, then edit in a second walk, as the README shows (#282 by @arshad-yaseen)
+- `findAll`, `isCallOf`, `isWrapper`, and `literalValue` are removed. Use `walk` with a typed handler, `nameOf(unwrap(node.callee))` on a `CallExpression`, `is.Wrapper`, and `node.value` (#282 by @arshad-yaseen)
+- `collectImports`, `collectExports`, `collectImportDeclaration`, and `collectExportDeclaration` are removed, so read `imports` and `exports` from `parse(source, { semantic: true })` (#282 by @arshad-yaseen)
+- The identifier checks are under `lexical`, as in `lexical.isIdentifierName`. `isStrictBindOnlyReservedWord` is `lexical.isEvalOrArguments`, and `isStrictBindReservedWord` is `lexical.isStrictReservedWord` or `lexical.isEvalOrArguments` (#282 by @arshad-yaseen)
+- `generate` is `print`, with `PrintOptions` and `PrintResult` in place of `GenerateOptions` and `GenerateResult`, and its `print` option is `printers` (#282 by @arshad-yaseen)
+- `minify` takes only `true` or `false`, and also picks the compact format, the shortest quotes, and `"some"` comments, which `format`, `quotes`, and `comments` still override. Write `minify: true, format: "pretty"` to minify syntax alone (#282 by @arshad-yaseen)
+- `comments` takes `"all"` and `"none"` in place of `true` and `false`, and `print` throws on an option it does not know (#282 by @arshad-yaseen)
+- Zig: `tree.setIdentifierName` is `tree.setName`, `Tree.initEmpty(allocator)` is `Tree.init(allocator, "")`, `tree.hasDiagnostics()` is removed in favor of `tree.diagnostics.items.len`, and `ast.StringPool` is removed (#282 by @arshad-yaseen)
+- Zig: `Semantic`, `Symbol`, `SymbolId`, `Reference`, `ReferenceId`, `Scope`, `ScopeId`, and `ScopeTree` come from `parser.semantic`, since `traverser.semantic` and `traverser.scoped` no longer re-export them (#282 by @arshad-yaseen)
+- Zig: `semantic.iterSymbols`, `iterScopes`, and `iterReferences` are removed, so loop over `semantic.symbols`, `semantic.scopes.list`, and `semantic.references`. `semantic.scope(id)` is `semantic.scopes.get(id)`, and `flags.inValueSpace()` is `flags.intersects(Symbol.value_space)`, and likewise for types and namespaces (#282 by @arshad-yaseen)
+- Zig: a scoped or semantic traverser reads `ctx.scope.current` and `ctx.scope.get(id)` in place of `currentScope()`, `hoistTarget()`, and `isStrict()` (#282 by @arshad-yaseen)
+- Zig: `semantic.AnalysisError`, `codegen.Error`, and `dialect.Error` are `std.mem.Allocator.Error`, and `codegen.Diagnostic` is `ast.Diagnostic` (#282 by @arshad-yaseen)
+- Zig: a dialect calls `recordComment` in place of `addComment`, and reads `p.tree().source` in place of `p.source()` (#282 by @arshad-yaseen)
+
+### Changes
+
+- `pattern` matches nodes against code such as `$A.then($$$ARGS)` and returns what each hole captured (#282 by @arshad-yaseen)
+- `js` and `ts` build nodes from code with values in its holes, as in ``js`console.log(${node})` `` (#282 by @arshad-yaseen)
+- `clone` makes a deep copy of a node (#282 by @arshad-yaseen)
+- `binding.rename` renames a binding where it is declared and used, keeps the file's exports, and changes nothing when the rename would change what the code means, returning the reasons instead (#282 by @arshad-yaseen)
+- `file.locate(offset)` gives the line and column of an offset (#282 by @arshad-yaseen)
+- `walk` takes a list of visitors and runs them in one pass, and walks 43 to 48% faster (#282 by @arshad-yaseen)
+- `print` takes a `SourceFile` as well as a node, and `sourceMap: true` adds a source map with the default options (#282 by @arshad-yaseen)
+- Parsing is up to 24% faster on large files, and parsing a whole project takes 11 to 15% less time and 19 to 37% less peak memory (#282 by @arshad-yaseen)
+- Reading one node from the semantic model, such as a reference's node, builds only that node instead of the whole AST (#282 by @arshad-yaseen)
+- Zig: `NumericLiteral.value` is exact for hexadecimal, octal, and binary literals above 2^64, and reads decimal literals of any length (#282 by @arshad-yaseen)
+
 ## 0.21.0
 
 ### Breaking
