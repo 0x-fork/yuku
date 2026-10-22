@@ -2,6 +2,13 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.22.2
+
+### Changes
+
+- A regular expression with an unknown, repeated, or conflicting flag keeps its node and the code after it, and the error points at the flag (#284 by @arshad-yaseen)
+- Enum member names follow TypeScript, so `["D"]` and `` [`D`] `` are valid and resolve, a name that is a number such as `"1"` is an error, and a computed member starts at its `[` (#284 by @arshad-yaseen)
+
 ## 0.22.1
 
 ### Changes
