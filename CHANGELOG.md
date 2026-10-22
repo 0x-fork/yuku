@@ -2,6 +2,16 @@
 
 What changed in each release of Yuku, newest first. Releases up to 0.14.0 are listed on [GitHub](https://github.com/yuku-toolchain/yuku/releases).
 
+## 0.23.0
+
+### Breaking
+
+- The `wasm` option of `parse` and `new Project` is `core`, so pass `core: new Core({ wasm: module })` where you passed `wasm: module`
+
+### Changes
+
+- A dialect runs natively in Node.js, Bun, and Deno when its package ships addons in its core, as `new Core({ wasm, addons })`, and `addAddons` in `build.zig` builds them for every platform
+
 ## 0.22.2
 
 ### Changes
