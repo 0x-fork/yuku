@@ -5,7 +5,7 @@
 .date = @date("2026-07-14T00:00:00"),
 .layout = "page.shtml",
 ---
-Yuku is tested for spec conformance, exact AST shapes, codegen soundness, name resolution, and behavior under memory pressure.
+Yuku is tested for spec conformance, exact AST shapes, codegen soundness, and behavior under memory pressure.
 
 ## [The parser test suite]($section.id('parser-test-suite'))
 

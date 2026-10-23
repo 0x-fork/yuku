@@ -14,7 +14,7 @@
 [![NPM Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Farshad-yaseen%2Fstatic%2Fmain%2Fbadges%2Fyuku-downloads.json&logo=npm&logoColor=212121&labelColor=ffc44e&color=212121)](https://npmtrends.com/yuku-analyzer-vs-yuku-codegen-vs-yuku-parser)
 [![sponsor](https://img.shields.io/badge/sponsor-EA4AAA?logo=githubsponsors&labelColor=FAFAFA)](https://github.com/sponsors/arshad-yaseen)
 
-Yuku is a JavaScript and TypeScript compiler toolchain written in Zig.
+Yuku is a high-performance JavaScript/TypeScript compiler toolchain written in Zig.
 
 [Try it in the playground →](https://playground.yuku.fyi)
 

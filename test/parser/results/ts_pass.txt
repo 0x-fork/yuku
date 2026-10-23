@@ -2,7 +2,7 @@ test/parser/suite/ts/pass
 =========================
 Passed:       8648/8648 (100.00%)
 Failed:       0
-AST mismatch: 0/8646
+AST mismatch: 0/8648
 
 ✓ test/parser/suite/ts/pass/0001c20c6e10cdb8.ts
 ✓ test/parser/suite/ts/pass/0003972a26de5234.ts

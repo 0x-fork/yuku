@@ -2,7 +2,7 @@ test/parser/suite/jsx/pass
 ==========================
 Passed:       87/87 (100.00%)
 Failed:       0
-AST mismatch: 0/86
+AST mismatch: 0/87
 
 ✓ test/parser/suite/jsx/pass/0794ac44b17fe6e9.jsx
 ✓ test/parser/suite/jsx/pass/09e94bc7badc2295.jsx

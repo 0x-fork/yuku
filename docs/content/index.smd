@@ -5,15 +5,16 @@
 .date = @date("2026-06-23T00:00:00"),
 .layout = "page.shtml",
 ---
-Yuku is a JavaScript and TypeScript compiler toolchain written in Zig: a parser, semantic analysis, traversal, and codegen, for use from JavaScript and from Zig.
+
+Yuku is a high-performance JavaScript/TypeScript compiler toolchain written in Zig. It is designed for correctness, performance, and clarity.
 
 [Try it in the playground →](https://playground.yuku.fyi)
 
 ## [Why Yuku]($section.id('why-yuku'))
 
-**Correct.** Zero failures and zero AST mismatches across the [test suite](/testing/).
+**Correct.** Yuku is 100% ECMAScript spec compliant. Zero failures and zero AST mismatches. Read [how Yuku is tested](/testing/).
 
-**Fast.** Faster than the alternatives, natively and on npm, see [Performance](#performance).
+**Fast.** Built using data-oriented design principles and generous performance engineering, see [Performance](#performance).
 
 **Anywhere.** Node.js, Bun, Deno, browsers, edge runtimes, and native Zig.
 
@@ -50,11 +51,6 @@ zig fetch --save git+https://github.com/yuku-toolchain/yuku.git
 const yuku = b.dependency("yuku", .{ .target = target, .optimize = optimize });
 my_module.addImport("parser", yuku.module("parser"));
 ```
-
-| Option                | Default | Description                                                                                                         |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
-| `codegen-source-maps` | `true`  | Compile source maps into [codegen](/parser/codegen/)                                                                |
-| `dialect`             | none    | A [dialect](https://github.com/yuku-toolchain/yuku/tree/main/src/parser/dialect#readme) file to compile into the parser |
 
 ```zig
 const parser = @import("parser");
