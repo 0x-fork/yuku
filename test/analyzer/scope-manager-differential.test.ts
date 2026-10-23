@@ -196,7 +196,7 @@ const SUITE = "test/parser/suite/ts/pass";
 
 const KNOWN: Known = {
   "scope-manager resolves an import equals alias to nothing": {
-    [`${SUITE}/3a66bcb0ff2adb2c.module.ts`]: ["x@268: yuku 175, scope-manager -1"],
+    [`${SUITE}/8aabbf239a1b517a.module.ts`]: ["x@268: yuku 175, scope-manager -1"],
   },
   "scope-manager merges a parameter with a same-named body var": {
     [`${SUITE}/f2131ad89bc9a8ba.ts`]: [
@@ -208,13 +208,13 @@ const KNOWN: Known = {
     ],
   },
   "scope-manager scopes a declaration in statement position apart from tsc": {
-    [`${SUITE}/4d85c34e00391b61.ts`]: [
+    [`${SUITE}/b406a8bde9b46310.ts`]: [
       "declaration@196: yuku scope 170, scope-manager global",
       "declaration@365: yuku scope global, scope-manager 335",
     ],
   },
   "typescript-estree reads `<!--` in a script as operators, not an HTML-like comment": {
-    "test/parser/suite/js/pass/158dc2b44b1958390.js": ["bar@8: no yuku reference"],
+    "test/parser/suite/js/pass/58dc2b44b1958390.js": ["bar@8: no yuku reference"],
     "test/parser/suite/js/pass/367c3d5dca7f95a5.js": ["b@5: no yuku reference"],
     "test/parser/suite/js/pass/9361ed8ad34bb5b9.js": ["bar@8: no yuku reference"],
   },

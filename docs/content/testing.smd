@@ -9,7 +9,7 @@ Yuku is tested for spec conformance, exact AST shapes, codegen soundness, and be
 
 ## [The parser test suite]($section.id('parser-test-suite'))
 
-The parser runs against [parser-test-suite](https://github.com/yuku-toolchain/parser-test-suite), over 55,000 tests from [Test262](https://github.com/tc39/test262), the [TypeScript](https://github.com/microsoft/TypeScript) compiler, and [Babel](https://github.com/babel/babel), synced with upstream daily.
+The parser runs against [parser-test-suite](https://github.com/yuku-toolchain/parser-test-suite), over 57,000 tests from [Test262](https://github.com/tc39/test262), the [TypeScript](https://github.com/microsoft/TypeScript) compiler, and [Babel](https://github.com/babel/babel), synced with upstream daily.
 
 | Category   | Expectation                                                        |
 | ---------- | ------------------------------------------------------------------ |
