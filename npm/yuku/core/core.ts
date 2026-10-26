@@ -59,6 +59,9 @@ export interface Shape {
   fields: string[];
   list: number;
   properties: Record<string, unknown>;
+  text: boolean;
+  /** The keys of `properties`, set when the dialect loads. */
+  keys?: string[];
 }
 
 export interface Dialect {
@@ -226,7 +229,10 @@ function dialectOf(exports: Exports): Dialect | null {
 
 function parseDialect(json: string): Dialect {
   const dialect = JSON.parse(json) as Dialect;
-  for (const shape of dialect.shapes) addChildKeys(shape.type, shape.fields);
+  for (const shape of dialect.shapes) {
+    shape.keys = Object.keys(shape.properties);
+    addChildKeys(shape.type, shape.fields);
+  }
   return dialect;
 }
 

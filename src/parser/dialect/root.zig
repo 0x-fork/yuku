@@ -59,6 +59,8 @@ pub const Shape = struct {
     iteration: bool = false,
     /// The node is a switch, which `break` inside ends.
     @"switch": bool = false,
+    /// The node is text, decoding in JavaScript as the source text of its span.
+    text: bool = false,
 };
 
 /// A kind of file the dialect parses, listed in its `files`.
@@ -159,9 +161,13 @@ fn shapesJson() []const u8 {
             const separator = if (j == 0) "" else ",";
             names = names ++ separator ++ "\"" ++ std.mem.trimEnd(u8, field, "[]") ++ "\"";
         }
+        if (node_shape.text and node_shape.fields.len > 0) {
+            @compileError("a dialect text node shape takes no fields");
+        }
+        const list_index: i32 = if (list) |index| @intCast(index) else -1;
         json = json ++ (if (i == 0) "" else ",") ++ std.fmt.comptimePrint(
-            "{{\"type\":\"{s}\",\"fields\":[{s}],\"list\":{d},\"properties\":{s}}}",
-            .{ node_shape.type, names, if (list) |index| @as(i32, index) else -1, properties },
+            "{{\"type\":\"{s}\",\"fields\":[{s}],\"list\":{d},\"properties\":{s},\"text\":{}}}",
+            .{ node_shape.type, names, list_index, properties, node_shape.text },
         );
     }
     return json ++ "]";

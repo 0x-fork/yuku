@@ -199,6 +199,7 @@ pub const Node = enum {
 | `catch_bindings`   | `false` | Each binding identifier inside declares a catch parameter                         |
 | `iteration`        | `false` | The node is a loop, which `break` and `continue` end or skip                      |
 | `switch`           | `false` | The node is a switch, which `break` ends                                          |
+| `text`             | `false` | The node is text, which decodes in JavaScript as the source text of its span      |
 
 `addNode` takes children in `fields` order, `.null` for an absent one, lying inside `span`. In the tree, the node is an `ast.Dialect`, its `kind` a `dialect.Kind` and its `children` a range for `tree.extra`. In JavaScript it is a plain object of its `type`, `start`, `end`, fields, and `properties`, so `each (item of list) { ... }` decodes as `{ type: "EachStatement", start, end, item, list, body: [...] }`.
 

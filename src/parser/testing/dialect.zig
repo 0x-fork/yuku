@@ -21,6 +21,7 @@ pub const Node = enum {
     shorthand,
     rescue,
     select,
+    operator,
 
     pub fn shape(node: Node) dialect.Shape {
         return switch (node) {
@@ -35,8 +36,7 @@ pub const Node = enum {
             .topic => .{ .type = "TopicReference" },
             .pipeline => .{
                 .type = "PipelineExpression",
-                .fields = &.{ "left", "right" },
-                .properties = "{\"operator\":\"|>\"}",
+                .fields = &.{ "left", "operator", "right" },
             },
             .expression_body => .{ .type = "ExpressionBody", .fields = &.{"expression"} },
             .interpolation => .{ .type = "JSXInterpolation", .fields = &.{"expression"} },
@@ -53,6 +53,7 @@ pub const Node = enum {
                 .fields = &.{ "discriminant", "body[]" },
                 .@"switch" = true,
             },
+            .operator => .{ .type = "Operator", .text = true },
         };
     }
 };
@@ -86,10 +87,12 @@ pub fn operator(p: *Parser, left: NodeIndex, precedence: u8) Error!Claim {
     if (!std.mem.startsWith(u8, p.tree().source[token.span.start..], "|>")) return .decline;
     if (precedence > ast.Precedence.Assignment) return .end;
 
+    const name_span: ast.Span = .{ .start = token.span.start, .end = token.span.start + 2 };
+    const name = try p.addNode(.operator, &.{}, name_span);
     if (!try p.advance() or !try p.advance()) return .failed;
     const right = try p.parseExpression(ast.Precedence.Assignment + 1) orelse return .failed;
     const span: ast.Span = .{ .start = p.tree().span(left).start, .end = p.tree().span(right).end };
-    return claimed(try p.addNode(.pipeline, &.{ left, right }, span));
+    return claimed(try p.addNode(.pipeline, &.{ left, name, right }, span));
 }
 
 pub fn function_body(p: *Parser) Error!Claim {
@@ -197,7 +200,7 @@ pub fn print(w: *dialect.Printer, kind: Node, children: []const NodeIndex) Error
         .pipeline => {
             try w.node(children[0]);
             try w.write(" |> ");
-            try w.node(children[1]);
+            try w.node(children[2]);
         },
         .expression_body => {
             try w.write("= ");
@@ -220,6 +223,7 @@ pub fn print(w: *dialect.Printer, kind: Node, children: []const NodeIndex) Error
             try w.space();
             try w.block(children[1..]);
         },
+        .operator => try w.write("|>"),
         .select => {
             try w.write("select (");
             try w.node(children[0]);
@@ -413,27 +417,39 @@ test "the dialect's files and node shapes reach the packages as JSON" {
     try testing.expectEqualStrings(
         \\{"files":[{"extension":".jsx","lang":"jsx"}],"shapes":
     ++
-        \\[{"type":"EachStatement","fields":["item","list","body"],"list":2,"properties":{}},
+        \\[{"type":"EachStatement","fields":["item","list","body"],"list":2,"properties":{},
     ++
-        \\{"type":"AssertStatement","fields":["argument"],"list":-1,"properties":{}},
+        \\"text":false},
     ++
-        \\{"type":"TopicReference","fields":[],"list":-1,"properties":{}},
+        \\{"type":"AssertStatement","fields":["argument"],"list":-1,"properties":{},"text":false},
     ++
-        \\{"type":"PipelineExpression","fields":["left","right"],"list":-1,
+        \\{"type":"TopicReference","fields":[],"list":-1,"properties":{},"text":false},
     ++
-        \\"properties":{"operator":"|>"}},
+        \\{"type":"PipelineExpression","fields":["left","operator","right"],"list":-1,
     ++
-        \\{"type":"ExpressionBody","fields":["expression"],"list":-1,"properties":{}},
+        \\"properties":{},"text":false},
     ++
-        \\{"type":"JSXInterpolation","fields":["expression"],"list":-1,"properties":{}},
+        \\{"type":"ExpressionBody","fields":["expression"],"list":-1,"properties":{},"text":false},
     ++
-        \\{"type":"JSXMarkedElement","fields":["element"],"list":-1,"properties":{}},
+        \\{"type":"JSXInterpolation","fields":["expression"],"list":-1,"properties":{},
     ++
-        \\{"type":"JSXShorthandAttribute","fields":["value"],"list":-1,"properties":{}},
+        \\"text":false},
     ++
-        \\{"type":"RescueStatement","fields":["param","body"],"list":1,"properties":{}},
+        \\{"type":"JSXMarkedElement","fields":["element"],"list":-1,"properties":{},"text":false},
     ++
-        \\{"type":"SelectStatement","fields":["discriminant","body"],"list":1,"properties":{}}]}
+        \\{"type":"JSXShorthandAttribute","fields":["value"],"list":-1,"properties":{},
+    ++
+        \\"text":false},
+    ++
+        \\{"type":"RescueStatement","fields":["param","body"],"list":1,"properties":{},
+    ++
+        \\"text":false},
+    ++
+        \\{"type":"SelectStatement","fields":["discriminant","body"],"list":1,"properties":{},
+    ++
+        \\"text":false},
+    ++
+        \\{"type":"Operator","fields":[],"list":-1,"properties":{},"text":true}]}
     , dialect.description);
 }
 

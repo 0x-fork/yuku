@@ -38,15 +38,25 @@ pub fn generate(w: *Writer) Writer.Error!void {
     try writeTokenList(w);
     try writeChildTables(w);
     try w.writeAll(
-        \\function shaped(shape, start, end, children) {
-        \\  const node = Object.assign({ type: shape.type, start, end }, shape.properties);
-        \\  const fields = shape.fields, list = shape.list, extra = children.length - fields.length;
-        \\  for (let i = 0; i < fields.length; i++) {
-        \\    node[fields[i]] = i === list
-        \\      ? children.slice(i, i + extra + 1)
-        \\      : children[list >= 0 && i > list ? i + extra : i];
+        \\function shaped(shape, start, end, node, _u32, base, count) {
+        \\  const result = { type: shape.type, start, end };
+        \\  const properties = shape.properties, keys = shape.keys;
+        \\  for (let k = 0; k < keys.length; k++) result[keys[k]] = properties[keys[k]];
+        \\  const fields = shape.fields, list = shape.list, extra = count - fields.length;
+        \\  for (let i = 0, j = base; i < fields.length; i++) {
+        \\    if (i !== list) {
+        \\      const x = _u32[j++];
+        \\      result[fields[i]] = x !== NULL ? node(x) : null;
+        \\      continue;
+        \\    }
+        \\    const items = new Array(extra + 1);
+        \\    for (let k = 0; k <= extra; k++) {
+        \\      const x = _u32[j++];
+        \\      items[k] = x !== NULL ? node(x) : null;
+        \\    }
+        \\    result[fields[i]] = items;
         \\  }
-        \\  return node;
+        \\  return result;
         \\}
         \\
     );
@@ -455,13 +465,16 @@ fn writeChildTables(w: *Writer) !void {
 
 // common kinds decode inline, the rest in small functions V8 can reoptimize one at a time
 const inline_kinds = [_][]const u8{
-    "identifier_reference",  "identifier_name",     "member_expression",
-    "call_expression",       "binding_identifier",  "string_literal",
-    "expression_statement",  "numeric_literal",     "object_property",
-    "ts_type_reference",     "variable_declarator", "variable_declaration",
-    "binary_expression",     "ts_type_annotation",  "formal_parameter",
-    "block_statement",       "if_statement",        "function_body",
-    "assignment_expression", "return_statement",    "logical_expression",
+    "identifier_reference",     "identifier_name",     "member_expression",
+    "call_expression",          "binding_identifier",  "string_literal",
+    "expression_statement",     "numeric_literal",     "object_property",
+    "ts_type_reference",        "variable_declarator", "variable_declaration",
+    "binary_expression",        "ts_type_annotation",  "formal_parameter",
+    "block_statement",          "if_statement",        "function_body",
+    "assignment_expression",    "return_statement",    "logical_expression",
+    "jsx_element",              "jsx_opening_element", "jsx_closing_element",
+    "jsx_identifier",           "jsx_attribute",       "jsx_text",
+    "jsx_expression_container", "dialect",
 };
 
 const decoder_fields = [_][]const u8{
@@ -1309,7 +1322,11 @@ const specials = [_]Special{
     \\return { type: "Identifier", start, end, decorators: [], name: "this", optional: false,
     \\  typeAnnotation: @type_annotation };
     },
-    .{ .tag = "dialect", .body = "return shaped(shapes[flags], start, end, @children);" },
+    .{ .tag = "dialect", .body =
+    \\const shape = shapes[flags];
+    \\if (shape.text) return _src.slice(start, end);
+    \\return shaped(shape, start, end, node, _u32, _extraBase + f1, f2);
+    },
 };
 
 const pattern_ts_fields = .{ "decorators", "optional", "type_annotation" };
