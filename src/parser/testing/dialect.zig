@@ -401,6 +401,14 @@ test "a source without the dialect is standard syntax" {
     try testing.expect(rejected.hasErrors());
 }
 
+test "a parse that names no lang reads the dialect, in its first file's" {
+    var tree = try parser.parse(testing.allocator, "const a = <raw>{b}</raw> |> f(%);", .{});
+    defer tree.deinit();
+    try expectClean(&tree);
+    try testing.expectEqual(.jsx, tree.lang);
+    try testing.expect(firstOf(&tree, .pipeline) != null);
+}
+
 test "the operator position binds at the precedence it receives" {
     const source = "const a = 1 + 2 |> f(%) |> g(%);\nconst b = c\n(d)";
     var tree = try parseSource(source, true);

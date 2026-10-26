@@ -90,7 +90,7 @@ pub const files: []const dialect.File = &.{
 };
 ```
 
-Each entry is a file extension and the standard `lang` it extends. In Zig, a parse opts in with `.dialect = true`, which needs a parser with a dialect compiled in, as `dialect.bound` tells. In JavaScript, the path picks the dialect, see [From JavaScript](#from-javascript).
+Each entry is a file extension and the standard `lang` it extends. In Zig, a parse that names no `lang` reads the dialect, in its first file's `lang`, and `.dialect = true` reads a given `lang` with it, which needs a parser with a dialect compiled in, as `dialect.bound` tells. In JavaScript, the path picks the dialect, see [From JavaScript](#from-javascript).
 
 ### Positions
 

@@ -71,6 +71,9 @@ pub const File = struct {
     lang: ast.Lang,
 };
 
+/// The files the dialect parses.
+pub const files: []const File = if (@hasDecl(Bound, "files")) Bound.files else &.{};
+
 /// The dialect's `Node` enum.
 pub const Kind = if (@hasDecl(Bound, "Node")) Bound.Node else enum(u16) { _ };
 
@@ -78,7 +81,7 @@ pub const bound = @typeInfo(Bound).@"struct".decl_names.len > 0;
 pub const prints = @hasDecl(Bound, "print");
 
 comptime {
-    if (bound and (!@hasDecl(Bound, "files") or Bound.files.len == 0)) {
+    if (bound and files.len == 0) {
         @compileError("a dialect lists the `files` it parses");
     }
     // the shapes compile only into the description, which a Zig-only build never reads
@@ -132,15 +135,15 @@ pub fn shape(kind: Kind) Shape {
 pub const description: []const u8 = if (bound) descriptionJson() else "";
 
 fn descriptionJson() []const u8 {
-    var files: []const u8 = "";
-    for (Bound.files, 0..) |file, i| {
-        files = files ++ (if (i == 0) "" else ",") ++ std.fmt.comptimePrint(
+    var entries: []const u8 = "";
+    for (files, 0..) |file, i| {
+        entries = entries ++ (if (i == 0) "" else ",") ++ std.fmt.comptimePrint(
             "{{\"extension\":\"{s}\",\"lang\":\"{t}\"}}",
             .{ file.extension, file.lang },
         );
     }
     const shapes = if (@hasDecl(Bound, "Node")) shapesJson() else "[]";
-    return "{\"files\":[" ++ files ++ "],\"shapes\":" ++ shapes ++ "}";
+    return "{\"files\":[" ++ entries ++ "],\"shapes\":" ++ shapes ++ "}";
 }
 
 fn shapesJson() []const u8 {
