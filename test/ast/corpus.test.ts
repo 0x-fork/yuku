@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { clone, is, js, parse, pattern, ts, walk, type Node, type SourceFile } from "yuku";
+import { js, parse, ts, walk, type Node, type SourceFile } from "yuku";
+import { is } from "yuku/utils";
 import { astDiffPath } from "../ast-helpers-for-test";
 import {
   corpusAndProjectFiles,
@@ -8,17 +9,14 @@ import {
   type CorpusFile,
 } from "../corpus";
 
-type Invariant = "clone" | "walk" | "options" | "tokens" | "pattern" | "hole" | "template";
+type Invariant = "walk" | "options" | "tokens" | "template" | "text";
 
-const INVARIANTS: Invariant[] = [
-  "clone",
-  "walk",
-  "options",
-  "tokens",
-  "pattern",
-  "hole",
-  "template",
-];
+const INVARIANTS: Invariant[] = ["walk", "options", "tokens", "template", "text"];
+const CONTEXTS = [
+  ["async function* _() {\n", "\n}", "module"],
+  ["", "", "module"],
+  ["", "", "commonjs"],
+] as const;
 const SAMPLE_MAX = 8;
 const CANDIDATES_MAX = 3;
 const CHILDREN_MAX = 3;
@@ -68,10 +66,15 @@ function childrenOf(node: Node): Node[] {
 }
 
 function fragment(text: string, lang: "jsx" | "tsx", statement: boolean): Node | null {
-  for (const sourceType of ["module", "commonjs"] as const) {
-    const { program, diagnostics } = parse(text, { lang, sourceType, preserveParens: false });
-    if (diagnostics.length > 0 || program.body.length !== 1) continue;
-    const root = program.body[0]!;
+  for (const [before, after, sourceType] of CONTEXTS) {
+    const code = `${before}${text}${after}`;
+    const { program, diagnostics } = parse(code, { lang, sourceType, preserveParens: false });
+    if (diagnostics.length > 0) continue;
+    const first = program.body.length === 1 ? program.body[0] : undefined;
+    const wrapped = first?.type === "FunctionDeclaration" ? first.body!.body : [];
+    const body = before === "" ? program.body : wrapped;
+    if (body.length !== 1) continue;
+    const root = body[0]!;
     if (statement) return root;
     return root.type === "ExpressionStatement" && !text.endsWith(";") ? root.expression : null;
   }
@@ -97,33 +100,12 @@ function candidatesOf(program: Node, source: string): Node[] {
     enter(node) {
       if (node === program || node.end - node.start > TEXT_MAX) return;
       if ((!is.Expression(node) && !is.Statement(node)) || is.Directive(node)) return;
-      if (/\$[A-Z_$]|__yuku_hole_/.test(source.slice(node.start, node.end))) return;
+      if (source.slice(node.start, node.end).includes("__yuku_hole_")) return;
       if (childrenOf(node).length > 0) all.push(node);
     },
   });
   const stride = Math.max(1, Math.floor(all.length / CANDIDATES_MAX));
   return all.filter((_, i) => i % stride === 0).slice(0, CANDIDATES_MAX);
-}
-
-function checkClone(file: CorpusFile, program: Node): Node {
-  checks.clone++;
-  const copy = clone(program);
-  if (!Bun.deepEquals(copy, program, true)) note("clone", `${file.path}: differs`);
-  const originals = new Set<object>();
-  walk(program, {
-    enter(node) {
-      originals.add(node);
-    },
-  });
-  walk(copy, {
-    enter(node, ctx) {
-      if (originals.has(node)) {
-        note("clone", `${file.path}: shares a ${node.type}`);
-        ctx.stop();
-      }
-    },
-  });
-  return copy;
 }
 
 function checkWalk(file: CorpusFile, program: Node, copy: Node): void {
@@ -141,10 +123,10 @@ function checkWalk(file: CorpusFile, program: Node, copy: Node): void {
   });
   if (entered.size !== leaves) note("walk", `${file.path}: enters and leaves differ`);
 
-  const edited = clone(copy);
+  const edited = structuredClone(copy);
   walk(edited, {
     Identifier(node, ctx) {
-      ctx.replace(clone(node));
+      ctx.replace(structuredClone(node));
       ctx.skip();
     },
   });
@@ -178,29 +160,27 @@ function checkOptions(file: CorpusFile, source: string, plain: SourceFile): void
   });
 }
 
-function checkPatterns(file: CorpusFile, source: string, program: Node): void {
+function checkTemplates(file: CorpusFile, source: string, program: Node): void {
   const typed = file.lang === "ts" || file.lang === "tsx" || file.lang === "dts";
-  const lang = typed ? "tsx" : "jsx";
   for (const node of candidatesOf(program, source)) {
     const slice = source.slice(node.start, node.end);
     const terminator = node.type === "ExpressionStatement" && !slice.endsWith(";") ? ";" : "";
     const text = `${slice}${terminator}`;
-    const statement = is.Statement(node);
-    if (!sameTree(fragment(text, "tsx", statement), node)) continue;
+    if (!sameTree(fragment(text, typed ? "tsx" : "jsx", is.Statement(node)), node)) continue;
     const where = `${file.path}: [${node.type}] \`${text.slice(0, 80)}\``;
-    checks.pattern++;
-    if (pattern(text).match(node) === null) note("pattern", where);
-
-    const templated = sameTree(fragment(text, lang, statement), node);
     for (const child of childrenOf(node).slice(0, CHILDREN_MAX)) {
       if (!isHole(source, node, child)) continue;
       const before = source.slice(node.start, child.start);
       const after = `${source.slice(child.end, node.end)}${terminator}`;
       const ends = is.Statement(child) || is.ModuleDeclaration(child) ? [";", ""] : [""];
-      const at = `${where} [${node.type} > ${child.type}]`;
-      checkHole(at, node, child, ends.map((end) => `${before}$HOLE${end}${after}`));
       const parts = ends.map((end) => [before, `${end}${after}`]);
-      if (templated) checkTemplate(at, node, child, typed, parts);
+      checkTemplate(`${where} [${node.type} > ${child.type}]`, node, child, typed, parts);
+      if (child.type === "Literal" && typeof child.value === "string") {
+        checkText(`${where} [${node.type} > string]`, node, child.value, typed, [
+          `${before}"`,
+          `"${after}`,
+        ]);
+      }
     }
   }
 }
@@ -211,23 +191,6 @@ function isHole(source: string, node: Node, child: Node): boolean {
   const jsx = node.type === "JSXElement" || node.type === "JSXFragment";
   if (jsx && (node.children as Node[]).includes(child)) return false;
   return !/[\w$]/.test(source[child.start - 1] ?? "") && !/[\w$]/.test(source[child.end] ?? "");
-}
-
-function checkHole(where: string, node: Node, child: Node, texts: string[]): void {
-  for (const text of texts) {
-    let compiled;
-    try {
-      compiled = pattern(text);
-    } catch {
-      continue;
-    }
-    if (compiled.type !== node.type) return;
-    checks.hole++;
-    const captures = compiled.match(node);
-    if (captures === null) note("hole", `${where} as \`${text.slice(0, 80)}\``);
-    else if (!sameTree(captures.HOLE, child)) note("hole", `${where} captures another node`);
-    return;
-  }
 }
 
 function checkTemplate(
@@ -259,6 +222,27 @@ function checkTemplate(
   }
 }
 
+function checkText(
+  where: string,
+  node: Node,
+  value: string,
+  typed: boolean,
+  parts: string[],
+): void {
+  const raw = parts.map(escaped);
+  const strings = Object.assign([...raw], { raw }) as TemplateStringsArray;
+  let built: Node;
+  try {
+    built = (typed ? ts : js)(strings, value);
+  } catch (error) {
+    if (error instanceof SyntaxError) return;
+    note("text", `${where} throws ${(error as Error).message}`);
+    return;
+  }
+  checks.text++;
+  if (!sameTree(built, node)) note("text", `${where} rebuilds differently`);
+}
+
 function escaped(code: string): string {
   return code.replace(/(\\*)(`|\$\{)/g, (_, slashes: string, token: string) => {
     return `${slashes}${slashes}\\${token}`;
@@ -269,10 +253,9 @@ function checkFile(file: CorpusFile, source: string): void {
   const options = { lang: file.lang, sourceType: file.sourceType, preserveParens: false };
   const plain = parse(source, options);
   if (plain.diagnostics.length > 0) return;
-  const copy = checkClone(file, plain.program);
-  checkWalk(file, plain.program, copy);
+  checkWalk(file, plain.program, structuredClone(plain.program));
   checkOptions(file, source, plain);
-  checkPatterns(file, source, plain.program);
+  checkTemplates(file, source, plain.program);
 }
 
 describe.skipIf(!corpusPresent())("AST tools across the corpus", () => {

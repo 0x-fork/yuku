@@ -4,12 +4,9 @@ import { basename, join } from "node:path";
 import { withCodSpeed } from "@codspeed/tinybench-plugin";
 import { Bench } from "tinybench";
 import {
-  b,
-  clone,
   Core,
   js,
   parse,
-  pattern,
   print,
   walk,
   type Diagnostic,
@@ -34,14 +31,7 @@ interface Scope {
 
 const NO_DIAGNOSTICS: Result = { diagnostics: [] };
 
-const PATTERNS = [
-  pattern("console.log($$$ARGS)"),
-  pattern("$A.then($$$ARGS)"),
-  pattern("setTimeout($F, 0)"),
-  pattern("$A.$B($$$ARGS)"),
-];
-
-const wasm = new WebAssembly.Module(readFileSync(join("packages", "yuku", "dist", "yuku.wasm")));
+const wasm = new WebAssembly.Module(readFileSync(join("npm", "wasm", "yuku.wasm")));
 const core = new Core({ wasm });
 
 const bench = withCodSpeed(new Bench({ time: 1000, warmupTime: 250, throws: true }));
@@ -127,30 +117,15 @@ for (const path of FILES) {
     },
     parsed,
   );
-  add(
-    `patterns ${name}`,
-    () => {
-      walk(file!.program, {
-        CallExpression(node) {
-          for (const rule of PATTERNS) void rule.match(node);
-        },
-      });
-      return NO_DIAGNOSTICS;
-    },
-    parsed,
-  );
-  add(
-    `clone ${name}`,
-    () => {
-      void clone(file!.program);
-      return NO_DIAGNOSTICS;
-    },
-    parsed,
-  );
 }
 
 add("template", () => {
-  for (let i = 0; i < 1_000; i++) void js`console.log(${b.Identifier({ name: "value" })}, ${i})`;
+  for (let i = 0; i < 1_000; i++) void js`console.log(${"value"}, ${i})`;
+  return NO_DIAGNOSTICS;
+});
+
+add("template with text", () => {
+  for (let i = 0; i < 1_000; i++) void js`import data from "./data/${i}.json";`;
   return NO_DIAGNOSTICS;
 });
 

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "types": [],
+    "allowJs": false,
+    "allowImportingTsExtensions": false,
+    "erasableSyntaxOnly": true,
+    "isolatedDeclarations": true,
+    "declaration": true,
+    "stripInternal": true
+  },
+  "include": ["index.ts", "core", "ast", "file", "print", "types"],
+  "exclude": []
+}

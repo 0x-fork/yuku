@@ -248,7 +248,7 @@ How this repository works. The runtime it ships to, where its tests and benchmar
 ### Runtime Baseline
 
 - Shipped JavaScript runs on **one floor**: ECMAScript 2020, on the runtime version in the root `package.json` `engines.node`. Tools downstream support older runtimes than we might, and a newer syntax or built-in breaks them silently. The package declares that same floor, and CI runs it on exactly that version.
-- The package runs Yuku as a Node-API addon where it ships one for the platform, and as WebAssembly with SIMD and no other post-MVP feature everywhere else. The addon calls only Node-API version 1 functions, so the floor is the first runtime with WebAssembly. Calling a newer Node-API function or enabling another WebAssembly feature raises the floor.
+- The package runs Yuku as a Node-API addon where one installs for the platform, and as WebAssembly with SIMD and no other post-MVP feature everywhere else. The addon calls only Node-API version 1 functions, so the floor is the first runtime with WebAssembly. Calling a newer Node-API function or enabling another WebAssembly feature raises the floor.
 - **Raising the floor is a breaking change.** Change the root `engines.node` on purpose, let the package follow it, and say so in the release notes. Never raise it implicitly by reaching for a newer feature.
 
 ### Testing
@@ -267,7 +267,7 @@ Test at the layer that changed, in the form that layer already uses. Every layer
 | Renames | `test/analyzer/rename.test.ts` |
 | Resolution as tsc or scope-manager defines it | A snippet in `test/analyzer/tsc-differential.test.ts` or `scope-manager-differential.test.ts` |
 | A real codebase to analyze | An entry in `test/projects/manifest.ts`, pinned to a commit |
-| Walking, patterns, templates, builders, and AST helpers | `test/ast/` |
+| Walking, templates, and utils | `test/ast/` |
 | The dialect mechanism | `src/parser/testing/dialect.zig`, a dialect that claims every position, and `test/dialect/` for its JavaScript side |
 | Zig internals the JS API cannot reach (traverser, scopes, walk order, allocation failure) | `src/parser/testing/cases/` |
 | A small pure Zig helper | An inline `test` block next to the function |
@@ -276,7 +276,7 @@ Test at the layer that changed, in the form that layer already uses. Every layer
 
 CodSpeed measures every pull request against `main` in its CPU simulation mode, which counts instructions and cache misses instead of time, so a regression shows on the pull request that causes it, even on shared CI runners.
 
-- `profile/package.ts` measures the `yuku` package as users call it: `parse`, analysis, `walk`, patterns, templates, `rename`, and `print`, with each option that has its own code path.
+- `profile/package.ts` measures the `yuku` package as users call it: `parse`, analysis, `walk`, templates, `rename`, and `print`, with each option that has its own code path.
 - `profile/native.zig`, listed in `profile/codspeed.yml`, runs `parse` and `analyze` as a native executable, so a flamegraph names the Zig functions the shipped addon and WebAssembly strip.
 - **A new operation, or an option with its own code path, gets a benchmark in the same change.**
 - Inputs are files from `test/projects/`, pinned to a commit. A changed input moves a benchmark as much as a changed toolchain does, so change one only on purpose.
@@ -284,7 +284,7 @@ CodSpeed measures every pull request against `main` in its CPU simulation mode, 
 
 ### Documentation
 
-- **One home, two guides beside their code.** [yuku.fyi](https://yuku.fyi), from `docs/content/`, documents Yuku and its Zig API. The package's README, `packages/yuku/README.md`, documents the JavaScript API, which npm and GitHub show, and `src/parser/dialect/README.md` documents dialects. None repeats another, and each links to the others where they meet.
+- **One home, two guides beside their code.** [yuku.fyi](https://yuku.fyi), from `docs/content/`, documents Yuku and its Zig API. The package's README, `npm/yuku/README.md`, documents the JavaScript API, which npm and GitHub show, and `src/parser/dialect/README.md` documents dialects. None repeats another, and each links to the others where they meet.
 - **Docs change with the API.** A change to a public API updates its guide in the same change, then `bun run docs:llms` regenerates `llms.txt` and `llms-full.txt` from all three.
 - **Every example runs.** An example that states what it returns returns exactly that.
 

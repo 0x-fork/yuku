@@ -1,17 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import { CHILD_KEYS, parse, type Expression, type Node } from "yuku";
 import {
-  b,
-  bindingIdentifiers,
-  CHILD_KEYS,
-  clone,
   is,
-  lexical,
-  nameOf,
-  parse,
+  isEvalOrArguments,
+  isIdentifierChar,
+  isIdentifierName,
+  isIdentifierStart,
+  isValidIdentifier,
   unwrap,
-  type Expression,
-} from "yuku";
+} from "yuku/utils";
 import { nodesOf } from "../ast-helpers-for-test";
+
+function nameOf(node: Node | null | undefined): string | null {
+  return node?.type === "Identifier" ? node.name : null;
+}
 
 function program(source: string) {
   return parse(source, { sourceType: "module", lang: "ts" }).program;
@@ -50,31 +52,31 @@ describe("is", () => {
   });
 });
 
-describe("lexical", () => {
+describe("names", () => {
   test("names, keywords, and binding validity", () => {
-    expect(lexical.isIdentifierName("foo")).toBe(true);
-    expect(lexical.isIdentifierName("π")).toBe(true);
-    expect(lexical.isIdentifierName("class")).toBe(true);
-    expect(lexical.isIdentifierName("1foo")).toBe(false);
-    expect(lexical.isIdentifierName("")).toBe(false);
-    expect(lexical.isValidIdentifier("foo")).toBe(true);
-    expect(lexical.isValidIdentifier("class")).toBe(false);
-    expect(lexical.isValidIdentifier("await")).toBe(false);
-    expect(lexical.isValidIdentifier("eval")).toBe(true);
-    expect(lexical.isEvalOrArguments("arguments")).toBe(true);
-    expect(lexical.isEvalOrArguments("argument")).toBe(false);
+    expect(isIdentifierName("foo")).toBe(true);
+    expect(isIdentifierName("π")).toBe(true);
+    expect(isIdentifierName("class")).toBe(true);
+    expect(isIdentifierName("1foo")).toBe(false);
+    expect(isIdentifierName("")).toBe(false);
+    expect(isValidIdentifier("foo")).toBe(true);
+    expect(isValidIdentifier("class")).toBe(false);
+    expect(isValidIdentifier("await")).toBe(false);
+    expect(isValidIdentifier("eval")).toBe(true);
+    expect(isEvalOrArguments("arguments")).toBe(true);
+    expect(isEvalOrArguments("argument")).toBe(false);
   });
 
   // the parser's Unicode tables, on any runtime
   test("code points", () => {
-    expect(lexical.isIdentifierStart(0x24)).toBe(true);
-    expect(lexical.isIdentifierStart(0x10940)).toBe(true);
-    expect(lexical.isIdentifierStart(0x200c)).toBe(false);
-    expect(lexical.isIdentifierChar(0x200c)).toBe(true);
-    expect(lexical.isIdentifierStart(0x110000)).toBe(false);
-    expect(lexical.isIdentifierStart(-1)).toBe(false);
-    expect(lexical.isIdentifierName("a\u{10940}")).toBe(true);
-    expect(lexical.isIdentifierName("\ud800")).toBe(false);
+    expect(isIdentifierStart(0x24)).toBe(true);
+    expect(isIdentifierStart(0x10940)).toBe(true);
+    expect(isIdentifierStart(0x200c)).toBe(false);
+    expect(isIdentifierChar(0x200c)).toBe(true);
+    expect(isIdentifierStart(0x110000)).toBe(false);
+    expect(isIdentifierStart(-1)).toBe(false);
+    expect(isIdentifierName("a\u{10940}")).toBe(true);
+    expect(isIdentifierName("\ud800")).toBe(false);
   });
 });
 
@@ -83,13 +85,6 @@ describe("utils", () => {
     expect(CHILD_KEYS.CallExpression).toEqual(["callee", "typeArguments", "arguments"]);
     expect(CHILD_KEYS.Literal).toEqual([]);
     expect(CHILD_KEYS.NotANode).toBeUndefined();
-  });
-
-  test("nameOf reads identifiers and string literals", () => {
-    expect(nameOf(firstExpression(`foo`))).toBe("foo");
-    expect(nameOf(firstExpression(`"bar"`))).toBe("bar");
-    expect(nameOf(firstExpression(`1`))).toBe(null);
-    expect(nameOf(null)).toBe(null);
   });
 
   test("a literal's value is its runtime value", () => {
@@ -134,44 +129,5 @@ describe("utils", () => {
 
     const node = firstExpression(`(x as any)!`);
     expect(is.Wrapper(node) && nameOf(unwrap(node.expression))).toBe("x");
-  });
-
-  test("bindingIdentifiers collects destructuring leaves in order", () => {
-    const root = program(`const { a, b: [c = 1, ...d], ...e } = obj;`);
-    const [declarator] = nodesOf(root, "VariableDeclarator");
-    expect(bindingIdentifiers(declarator!.id).map((id) => id.name)).toEqual(["a", "c", "d", "e"]);
-  });
-
-  test("builders default spans to 0 and fields to the empty value their type allows", () => {
-    const node = b.CallExpression({ callee: b.Identifier({ name: "f" }) });
-    expect(node).toEqual({
-      type: "CallExpression",
-      start: 0,
-      end: 0,
-      callee: { type: "Identifier", start: 0, end: 0, name: "f" },
-      arguments: [],
-      optional: false,
-    });
-    expect(nameOf(b.Identifier({ name: "x", start: 3, end: 4 }))).toBe("x");
-    expect(b.UnaryExpression({ operator: "!", argument: node }).prefix).toBe(true);
-    expect(is.NullLiteral(b.Literal({ value: null }))).toBe(true);
-  });
-
-  test("built nodes never share a list", () => {
-    const first = b.ArrayExpression({});
-    const second = b.ArrayExpression({});
-    first.elements.push(b.Identifier({ name: "a" }));
-    expect(second.elements).toEqual([]);
-  });
-
-  test("clone copies a tree, sharing no node or list, comments included", () => {
-    const root = program(`// lead\nf(a, [b]);`);
-    const copy = clone(root);
-    expect(copy).toEqual(root);
-    expect(copy.body[0]).not.toBe(root.body[0]);
-    expect(copy.body[0]!.comments).toEqual(root.body[0]!.comments);
-    const [call] = nodesOf(copy, "CallExpression");
-    expect(call!.arguments).not.toBe(nodesOf(root, "CallExpression")[0]!.arguments);
-    expect(() => clone(null as never)).toThrow("expected an AST node");
   });
 });

@@ -7,19 +7,19 @@
 
 Source: https://yuku.fyi/
 
-Yuku is a JavaScript and TypeScript compiler toolchain written in Zig: a parser, semantic analysis, traversal, and codegen, for use from JavaScript and from Zig.
+Yuku is a high-performance JavaScript/TypeScript compiler toolchain written in Zig. It is designed for correctness, performance, and clarity.
 
 [Try it in the playground →](https://playground.yuku.fyi)
 
 ## Why Yuku
 
-**Correct.** Zero failures and zero AST mismatches across the [test suite](https://yuku.fyi/testing/).
+**Correct.** Yuku is 100% ECMAScript spec compliant. Zero failures and zero AST mismatches. Read [how Yuku is tested](https://yuku.fyi/testing/).
 
-**Fast.** Faster than the alternatives, natively and on npm, see [Performance](#performance).
+**Fast.** Built using data-oriented design principles and generous performance engineering, see [Performance](#performance).
 
 **Anywhere.** Node.js, Bun, Deno, browsers, edge runtimes, and native Zig.
 
-**Zero dependencies.** Pure Zig, with no dependencies in the build or on npm.
+**Zero dependencies.** Pure Zig, with no third-party dependencies in the build or on npm.
 
 **Modern.** New and proposed syntax, including decorators, source phase and deferred imports, and `using` declarations.
 
@@ -37,7 +37,7 @@ const file = parse(`const answer: number = 42;`, { path: "answer.ts" });
 print(file, { strip: true }).code; // "const answer = 42;"
 ```
 
-One import parses, analyzes, walks, matches, builds, renames, and prints. The [package guide](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#readme) documents it.
+One import parses, analyzes, walks, builds, renames, and prints. The [package guide](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#readme) documents it.
 
 ## Zig
 
@@ -52,11 +52,6 @@ zig fetch --save git+https://github.com/yuku-toolchain/yuku.git
 const yuku = b.dependency("yuku", .{ .target = target, .optimize = optimize });
 my_module.addImport("parser", yuku.module("parser"));
 ```
-
-| Option                | Default | Description                                                                                                         |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
-| `codegen-source-maps` | `true`  | Compile source maps into [codegen](https://yuku.fyi/parser/codegen/)                                                                |
-| `dialect`             | none    | A [dialect](https://github.com/yuku-toolchain/yuku/tree/main/src/parser/dialect#readme) file to compile into the parser |
 
 ```zig
 const parser = @import("parser");
@@ -95,7 +90,7 @@ Analyzing a whole codebase, resolving every reference and linking every import a
 
 Source: https://yuku.fyi/parser/
 
-The parser reads JavaScript, TypeScript, and JSX into a [tree](https://yuku.fyi/parser/ast/). It recovers from errors, so a parse with diagnostics still returns everything it could read. From JavaScript, see [`parse`](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#parse).
+The parser reads JavaScript, TypeScript, and JSX into a [tree](https://yuku.fyi/parser/ast/). It recovers from errors, so a parse with diagnostics still returns everything it could read. From JavaScript, see [`parse`](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#parse).
 
 ```zig
 const std = @import("std");
@@ -159,7 +154,7 @@ try tree.addDiagnostic(.{ .message = "unused", .span = span });
 
 Source: https://yuku.fyi/parser/ast/
 
-A parse returns an `ast.Tree`, a flat tree whose nodes, child lists, and strings live in arrays in one arena. From JavaScript, the tree decodes to [ESTree](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#the-ast).
+A parse returns an `ast.Tree`, a flat tree whose nodes, child lists, and strings live in arrays in one arena. From JavaScript, the tree decodes to [ESTree](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#the-ast).
 
 | Type         | Is                                                             |
 | ------------ | -------------------------------------------------------------- |
@@ -294,7 +289,7 @@ try lexical.decodeJSXEntities(gpa, raw, &out);
 
 Source: https://yuku.fyi/parser/semantic/
 
-Semantic analysis builds a model of a program's scopes, symbols, and references, with each reference resolved to the symbol it names, and reports the early errors that need scopes, such as redeclarations. From JavaScript, see [Semantic analysis](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#semantic-analysis).
+Semantic analysis builds a model of a program's scopes, symbols, and references, with each reference resolved to the symbol it names, and reports the early errors that need scopes, such as redeclarations. From JavaScript, see [Semantic analysis](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#semantic-analysis).
 
 ```zig
 var tree = try parser.parse(allocator, source, .{});
@@ -477,7 +472,7 @@ records.flags // .uses_require, .uses_module, .uses_exports, and .uses_import_me
 
 Source: https://yuku.fyi/parser/traverse/
 
-The traverser walks a tree depth-first and calls a visitor's hooks at each node, in one of four modes. From JavaScript, see [`walk`](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#walk).
+The traverser walks a tree depth-first and calls a visitor's hooks at each node, in one of four modes. From JavaScript, see [`walk`](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#walk).
 
 | Mode                      | Tracks                          | Returns                                   | `ctx.tree`        |
 | ------------------------- | ------------------------------- | ----------------------------------------- | ----------------- |
@@ -658,7 +653,7 @@ pub fn exit(self: *C, comptime tag: ast.NodeTag, index: ast.NodeIndex, data: ast
 
 Source: https://yuku.fyi/parser/codegen/
 
-Codegen prints a tree back to source, with optional type stripping, minification, and source maps. From JavaScript, see [`print`](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#print).
+Codegen prints a tree back to source, with optional type stripping, minification, and source maps. From JavaScript, see [`print`](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#print).
 
 ```zig
 var tree = try parser.parse(allocator, "const x: number = 1;", .{ .lang = .ts });
@@ -761,7 +756,7 @@ const yuku = b.dependency("yuku", .{ .@"codegen-source-maps" = false });
 
 Source: https://yuku.fyi/testing/
 
-Yuku is tested for spec conformance, exact AST shapes, codegen soundness, name resolution, and behavior under memory pressure.
+Yuku is tested for spec conformance, exact AST shapes, codegen soundness, and behavior under memory pressure.
 
 ## The parser test suite
 
@@ -822,26 +817,26 @@ We aim to acknowledge reports within 72 hours. Please allow a reasonable window 
 
 # JavaScript
 
-Source: https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#readme
+Source: https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#readme
 
 ```bash
 npm install yuku
 ```
 
-```js
-import { js, parse, pattern, print, walk } from "yuku";
+It runs natively where its addon for the platform installs, and as WebAssembly everywhere else. Cloudflare Workers and Vercel Edge run WebAssembly only from a file, so there also install `@yuku-toolchain/wasm`.
 
-const file = parse(`console.log("ready", port);`);
-const log = pattern("console.log($$$ARGS)");
+```js
+import { js, parse, print, walk } from "yuku";
+
+const file = parse(`const area = radius ** 2 * Math.PI;`);
 
 walk(file.program, {
-  CallExpression(node, ctx) {
-    const captures = log.match(node);
-    if (captures !== null) ctx.replace(js`logger.info(${captures.ARGS})`);
+  BinaryExpression(node, ctx) {
+    if (node.operator === "**") ctx.replace(js`Math.pow(${node.left}, ${node.right})`);
   },
 });
 
-print(file).code; // 'logger.info("ready", port);'
+print(file).code; // "const area = Math.pow(radius, 2) * Math.PI;"
 ```
 
 ```js
@@ -859,8 +854,8 @@ print(file).code; // "const twice = (n) => n * 2;\ntwice(21);"
 - [Parse](#parse): [options](#options), [diagnostics](#diagnostics), [comments](#comments), [tokens](#tokens)
 - [The AST](#the-ast)
 - [Walk](#walk): [the context](#the-context), [editing](#editing), [async work](#async-work)
-- [Patterns](#patterns)
-- [Build](#build): [templates](#templates), [builders](#builders), [guards and helpers](#guards-and-helpers)
+- [Templates](#templates)
+- [Utils](#utils)
 - [Semantic analysis](#semantic-analysis): [scopes](#scopes), [bindings](#bindings), [references](#references), [imports and exports](#imports-and-exports)
 - [Rename](#rename)
 - [Projects](#projects)
@@ -901,7 +896,7 @@ The parser recovers from errors, so a file with diagnostics still has a program.
 | `semanticErrors` | `false`                                             | Also report the early errors that need scopes, such as redeclarations                                                                     |
 | `core`           | the core yuku ships                                 | The Zig core to run, such as one with a [dialect](https://github.com/yuku-toolchain/yuku/tree/main/src/parser/dialect#readme) compiled in |
 
-A file holds what it was parsed with, so reading `file.tokens` or the model of a file parsed without them throws. `langFromPath(path)` and `sourceTypeFromPath(path)` return what a path implies.
+A file holds what it was parsed with, so reading `file.tokens` or the model of a file parsed without them throws.
 
 ### Diagnostics
 
@@ -1068,59 +1063,7 @@ walk(file.program, {
 });
 ```
 
-## Patterns
-
-`pattern` compiles code with holes into a test of nodes, which runs in a walk.
-
-```js
-import { pattern, walk } from "yuku";
-
-const method = pattern("$OBJ.$METHOD($$$ARGS)");
-
-walk(file.program, {
-  CallExpression(node) {
-    const captures = method.match(node); // or null
-    captures?.OBJ;    // one node
-    captures?.ARGS;   // a list of nodes
-  },
-});
-
-method.type; // "CallExpression", the visitor key it matches under
-```
-
-| Hole      | Matches                                                      |
-| --------- | ------------------------------------------------------------ |
-| `$NAME`   | Any one node. A name used twice matches equal nodes.         |
-| `$$$NAME` | Any run of items in a list, such as arguments or statements. |
-| `$_`      | Any one node, uncaptured.                                    |
-
-```js
-pattern("$X === $X");          // a === a, f(x) === f(x)
-pattern("f($$$BEFORE, last)"); // f(last), f(1, 2, last)
-pattern("if ($TEST) $BODY;");  // any if without an else
-```
-
-A pattern ending in `;` matches statements, and anything else matches expressions. A hole stands for the whole node that is nothing but it, so `$S;` matches any statement, `let $D;` any declarator, `x as $T` any type, and `{ $P }` any property. A lone hole such as `$X` would match every node, so it throws. In TypeScript, the captures are typed from the pattern.
-
-Any number of patterns share one walk, each under its type.
-
-```js
-const rules = [pattern("console.log($$$ARGS)"), pattern("debugger;")];
-const found = [];
-
-walk(
-  file.program,
-  rules.map((rule) => ({
-    [rule.type]: (node) => {
-      if (rule.match(node) !== null) found.push(node);
-    },
-  })),
-);
-```
-
-## Build
-
-### Templates
+## Templates
 
 `js` and `ts` build nodes from code, an expression unless it ends in `;`.
 
@@ -1130,37 +1073,38 @@ import { js, ts } from "yuku";
 js`console.log(${node})`;
 js`return ${value} ?? ${fallback};`;
 ts`const total: ${type} = ${initial};`;
+js`import config from "${path}";`;
+js`<${tag} label="${label}">{${child}}</${tag}>`;
 ```
 
 | A hole takes                         | And becomes                                 |
 | ------------------------------------ | ------------------------------------------- |
 | a node                               | that node                                   |
-| a string                             | a name, which must be a valid identifier    |
+| a string                             | a name, valid as an identifier or JSX name  |
+| a string or number, inside quotes    | its text, escaped as the quotes need        |
 | a number, boolean, bigint, or `null` | its literal                                 |
 | `undefined`                          | the identifier `undefined`                  |
 | an array                             | its items, filling a list such as arguments |
 
-A hole takes a node of the kind it stands for, as a pattern's does, such as a statement in `${s};` or a declarator in `let ${d};`, or a name to fill it, and throws for a node that is neither. A template parses once per call site, and its nodes have no position.
+A hole stands for the largest node around it that holds nothing else, such as a statement in `${s};`, a declarator in `let ${d};`, or a property in `{ ${p} }`, and a node of that kind takes its place. A name or a binding pattern fills it instead, and so does an expression in a statement. A hole in a name that holds more, such as `(${p}: T)`, takes a name and keeps the rest. A node that fits neither throws.
 
-### Builders
-
-`b` has a constructor per node type, defaulting spans to 0 and any field that may be false, null, or empty.
+Code that needs a function or a generator, such as `return x;` or `yield x`, builds as it would inside one. A node that only exists inside another comes from a template of its container.
 
 ```js
-import { b } from "yuku";
-
-b.CallExpression({ callee: b.Identifier({ name: "f" }) });
-// { type: "CallExpression", start: 0, end: 0, arguments: [], optional: false, callee: ... }
-
-b.ArrowFunctionExpression({ body: b.Identifier({ name: "x" }), expression: true }); // () => x
+js`({ ${key}: ${value} })`.properties[0]; // a property
+js`switch (x) { case ${test}: }`.cases[0]; // a case
+ts`type _ = Array<${item}>;`.typeAnnotation; // a type
+js`{ ${a}; ${b}; }`.body; // several statements
 ```
 
-`clone(node)` deep-copies a node.
+A node goes in once, and a copy of it wherever else it is used. The comments around a hole move to what fills it. A template parses once per call site, and its nodes have no position.
 
-### Guards and helpers
+## Utils
+
+`yuku/utils` has the small helpers.
 
 ```js
-import { is } from "yuku";
+import { is, isIdentifierName, isValidIdentifier, unwrap } from "yuku/utils";
 
 is.CallExpression(node);
 is.Expression(node);              // aliases too
@@ -1170,20 +1114,13 @@ is.StringLiteral(node);           // also NumericLiteral, BooleanLiteral, NullLi
 is.StaticMemberExpression(node);  // also ComputedMemberExpression and PrivateFieldExpression
 is.Directive(node);
 is.Wrapper(node);                 // parentheses or an erased TypeScript assertion
+unwrap(node);                     // the expression inside every wrapper
+
+isValidIdentifier("class");       // false, reserved
+isIdentifierName("class");        // true
 ```
 
-```js
-import { bindingIdentifiers, lexical, nameOf, unwrap } from "yuku";
-
-nameOf(node);             // an Identifier's name or a string Literal's value
-unwrap(node);             // the expression inside every wrapper
-bindingIdentifiers(node); // every Identifier a pattern declares
-
-lexical.isValidIdentifier("class");  // false, reserved
-lexical.isIdentifierName("class");   // true
-```
-
-`lexical` also has `isIdentifierStart`, `isIdentifierChar`, `isKeyword`, `isReservedWord`, `isStrictReservedWord`, and `isEvalOrArguments`.
+It also has `isIdentifierStart`, `isIdentifierChar`, `isKeyword`, `isReservedWord`, `isStrictReservedWord`, and `isEvalOrArguments`.
 
 ## Semantic analysis
 
@@ -1397,7 +1334,7 @@ Analyzing a whole codebase, it is faster than typescript-eslint and the TypeScri
 
 ![Analyzing typescript.js (7.8 MB) on npm](https://raw.githubusercontent.com/yuku-toolchain/ecmascript-analyzer-benchmark-js/refs/heads/main/charts/typescript_js.svg)
 
-Measured on an Apple M3, see the [parser](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js) and [analyzer](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js) benchmarks. Pass one `walk` all your visitors and patterns.
+Measured on an Apple M3, see the [parser](https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js) and [analyzer](https://github.com/yuku-toolchain/ecmascript-analyzer-benchmark-js) benchmarks. Pass one `walk` all your visitors.
 
 ## License
 
@@ -1407,7 +1344,7 @@ MIT
 
 Source: https://github.com/yuku-toolchain/yuku/tree/main/src/parser/dialect#readme
 
-A dialect adds your own syntax to JavaScript, TypeScript, or JSX, from a single operator to a whole language such as [TSRX](https://tsrx.dev). You write only the new syntax, in one Zig file, compiled into Yuku's parser. Yuku parses, analyzes, walks, and prints the rest of the language to the spec, and your nodes with it, from Zig and from the [`yuku` package](https://github.com/yuku-toolchain/yuku/tree/main/packages/yuku#readme).
+A dialect adds your own syntax to JavaScript, TypeScript, or JSX, from a single operator to a whole language such as [TSRX](https://tsrx.dev). You write only the new syntax, in one Zig file, compiled into Yuku's parser. Yuku parses, analyzes, walks, and prints the rest of the language to the spec, and your nodes with it, from Zig and from the [`yuku` package](https://github.com/yuku-toolchain/yuku/tree/main/npm/yuku#readme).
 
 - [Example](#example)
 - [The dialect file](#the-dialect-file): [files](#files), [positions](#positions), [the parser](#the-parser), [nodes](#nodes), [printing](#printing)
