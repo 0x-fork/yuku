@@ -20,6 +20,7 @@ pub const Node = enum {
     marked,
     shorthand,
     rescue,
+    select,
 
     pub fn shape(node: Node) dialect.Shape {
         return switch (node) {
@@ -47,6 +48,11 @@ pub const Node = enum {
                 .block_scope = true,
                 .catch_bindings = true,
             },
+            .select => .{
+                .type = "SelectStatement",
+                .fields = &.{ "discriminant", "body[]" },
+                .@"switch" = true,
+            },
         };
     }
 };
@@ -58,6 +64,7 @@ pub fn statement(p: *Parser) Error!Claim {
     const next = p.tokenAt(token.span.end);
     if (std.mem.eql(u8, name, "each") and next.tag == .left_paren) return parseEach(p);
     if (std.mem.eql(u8, name, "rescue") and next.tag == .left_paren) return parseRescue(p);
+    if (std.mem.eql(u8, name, "select") and next.tag == .left_paren) return parseSelect(p);
     if (std.mem.eql(u8, name, "assert") and next.tag.isIdentifierLike()) return parseAssertion(p);
     return .decline;
 }
@@ -213,6 +220,13 @@ pub fn print(w: *dialect.Printer, kind: Node, children: []const NodeIndex) Error
             try w.space();
             try w.block(children[1..]);
         },
+        .select => {
+            try w.write("select (");
+            try w.node(children[0]);
+            try w.write(")");
+            try w.space();
+            try w.block(children[1..]);
+        },
     }
 }
 
@@ -245,6 +259,21 @@ fn parseRescue(p: *Parser) Error!Claim {
     try children.append(param);
     const end = try parseBody(p, &children, "rescue") orelse return .failed;
     return claimed(try p.addNode(.rescue, children.items(), .{ .start = start, .end = end }));
+}
+
+fn parseSelect(p: *Parser) Error!Claim {
+    const start = p.token().span.start;
+    if (!try p.advance() or !try p.expect(.left_paren, "Expected '(' after 'select'")) {
+        return .failed;
+    }
+    const discriminant = try p.parseExpression(ast.Precedence.Lowest) orelse return .failed;
+    if (!try p.expect(.right_paren, "Expected ')' to close 'select'")) return .failed;
+
+    var children = p.list();
+    defer children.reset();
+    try children.append(discriminant);
+    const end = try parseBody(p, &children, "select") orelse return .failed;
+    return claimed(try p.addNode(.select, children.items(), .{ .start = start, .end = end }));
 }
 
 // the statements of a `{ }` body, returning where it ends
@@ -307,6 +336,9 @@ const every_position =
     \\}
     \\rescue (error) {
     \\  assert error;
+    \\}
+    \\select (value) {
+    \\  break;
     \\}
     \\const view = <{tag} {value}>a @(value) b @<i>c</i><raw>{not code}</raw></{tag}>;
 ;
@@ -399,7 +431,9 @@ test "the dialect's files and node shapes reach the packages as JSON" {
     ++
         \\{"type":"JSXShorthandAttribute","fields":["value"],"list":-1,"properties":{}},
     ++
-        \\{"type":"RescueStatement","fields":["param","body"],"list":1,"properties":{}}]}
+        \\{"type":"RescueStatement","fields":["param","body"],"list":1,"properties":{}},
+    ++
+        \\{"type":"SelectStatement","fields":["discriminant","body"],"list":1,"properties":{}}]}
     , dialect.description);
 }
 
@@ -472,6 +506,19 @@ test "a dialect loop is the target of break and continue" {
     defer crossing.deinit();
     _ = try parser.semantic.analyze(&crossing, .{ .check = true });
     try testing.expect(crossing.hasErrors());
+}
+
+test "a dialect switch is the target of break but not of continue" {
+    var tree = try parseSource("select (value) { if (value) break; }", true);
+    defer tree.deinit();
+    _ = try parser.semantic.analyze(&tree, .{ .check = true });
+    try expectClean(&tree);
+
+    var skipped = try parseSource("select (value) { continue; }", true);
+    defer skipped.deinit();
+    _ = try parser.semantic.analyze(&skipped, .{ .check = true });
+    const message = skipped.diagnostics.items[0].message;
+    try testing.expectEqualStrings("Illegal continue statement", message);
 }
 
 test "a var redeclares a dialect catch binding while the binding is an identifier" {

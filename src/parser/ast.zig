@@ -2555,6 +2555,15 @@ pub const NodeData = union(enum) {
         };
     }
 
+    /// Whether the node is a switch.
+    pub fn isSwitch(self: NodeData) bool {
+        return switch (self) {
+            .switch_statement => true,
+            .dialect => |node| @import("dialect/root.zig").shape(node.kind).@"switch",
+            else => false,
+        };
+    }
+
     const type_context_tags = [_]std.meta.Tag(NodeData){
         .ts_type_annotation,
         .ts_type_reference,

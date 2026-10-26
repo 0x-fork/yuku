@@ -807,7 +807,10 @@ const Printer = struct {
         };
         if (ctx.no_instantiation and data == .ts_instantiation_expression) return true;
         if (ctx.no_chain and data == .chain_expression) return true;
-        if (ctx.prec >= Precedence.Call and data == .chain_expression) return true;
+        if (ctx.prec >= Precedence.Call) switch (data) {
+            .chain_expression, .jsx_element, .jsx_fragment, .dialect => return true,
+            else => {},
+        };
 
         if (ctx.no_in and data == .binary_expression and
             data.binary_expression.operator == .in) return true;

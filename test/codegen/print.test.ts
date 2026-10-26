@@ -100,6 +100,15 @@ test("JSX text and attributes keep their raw text", () => {
     `);
 });
 
+test("an element before a subscript keeps its parentheses", () => {
+  expect(gen("(<a />).b;\n(<a />)();\n(<></>)`t`;\n<a />.b;", {}, "input.jsx")).toMatchInlineSnapshot(`
+    "(<a />).b;
+    (<a />)();
+    (<></>)\`t\`;
+    (<a />).b;"
+  `);
+});
+
 test("TS definite assignment assertions", () => {
   expect(gen(`let x!: number;\nclass C {\n  y!: string;\n}`)).toMatchInlineSnapshot(`
     "let x!: number;

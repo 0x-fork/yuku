@@ -146,12 +146,15 @@ pub fn module_specifier(p: *dialect.Parser) std.mem.Allocator.Error!dialect.Clai
 | `parseStatement()`                   | Parses a statement                                                                                         |
 | `parseExpression(precedence)`        | Parses an expression binding at `precedence` or tighter, `ast.Precedence.Lowest` for a whole one           |
 | `parseBindingPattern()`              | Parses an identifier, array, or object pattern, with its type annotation                                   |
+| `toPattern(expression, context)`     | Turns an expression into the binding or assignment pattern it is written as, as `[a, b] = c` does          |
 | `parseJsxExpressionContainer()`      | Parses the `{ expression }` at the current `{` in a tag                                                    |
 | `parseJsxElement()`                  | Parses the element or fragment at the current `<`, leaving its last `>` current                            |
 | `addNode(kind, children, span)`      | Adds one of your [nodes](#nodes)                                                                           |
 | `list()`                             | A `dialect.List` that collects children of unknown count                                                   |
 | `addJsxText(span)`                   | Adds the source text in a non-empty `span` as JSX text                                                     |
 | `recordComment(type, span)`          | Records a comment where the standard grammar reads none, in source order                                   |
+| `canAwait()`                         | Whether `await` is an operator here, in an async function or a module's top level                          |
+| `endDirectivePrologue()`             | Ends the directive prologue of a `function_body`, at its first part that is no statement                   |
 | `tree()`                             | The `ast.Tree`, to read nodes and [build](https://yuku.fyi/parser/ast/#building-and-editing) standard ones |
 
 A parse call returns `null` after it reports a diagnostic, and then you answer `.failed`.
@@ -195,6 +198,7 @@ pub const Node = enum {
 | `lexical_bindings` | `false` | Each binding identifier inside declares a `let`-like binding in the current scope |
 | `catch_bindings`   | `false` | Each binding identifier inside declares a catch parameter                         |
 | `iteration`        | `false` | The node is a loop, which `break` and `continue` end or skip                      |
+| `switch`           | `false` | The node is a switch, which `break` ends                                          |
 
 `addNode` takes children in `fields` order, `.null` for an absent one, lying inside `span`. In the tree, the node is an `ast.Dialect`, its `kind` a `dialect.Kind` and its `children` a range for `tree.extra`. In JavaScript it is a plain object of its `type`, `start`, `end`, fields, and `properties`, so `each (item of list) { ... }` decodes as `{ type: "EachStatement", start, end, item, list, body: [...] }`.
 

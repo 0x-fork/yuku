@@ -7,6 +7,7 @@ const expressions = @import("../syntax/expressions.zig");
 const patterns = @import("../syntax/patterns.zig");
 const ts = @import("../syntax/ts/types.zig");
 const jsx = @import("../syntax/jsx/root.zig");
+const grammar = @import("../grammar.zig");
 
 const Bound = @import("dialect");
 
@@ -14,6 +15,9 @@ const Error = std.mem.Allocator.Error;
 
 /// A parser position to return to with `Parser.rewind`.
 pub const Checkpoint = core.Checkpoint;
+
+/// What `Parser.toPattern` turns an expression into.
+pub const PatternContext = grammar.PatternContext;
 
 pub const Position = enum {
     statement,
@@ -53,6 +57,8 @@ pub const Shape = struct {
     catch_bindings: bool = false,
     /// The node is a loop, which `break` and `continue` inside end or skip.
     iteration: bool = false,
+    /// The node is a switch, which `break` inside ends.
+    @"switch": bool = false,
 };
 
 /// A kind of file the dialect parses, listed in its `files`.
@@ -247,6 +253,26 @@ pub const Parser = struct {
         const pattern = try patterns.parseBindingPattern(self.inner) orelse return null;
         if (!self.inner.tree.isTs() or self.inner.current_token.tag != .colon) return pattern;
         return ts.parsePatternTypeAnnotation(self.inner, pattern);
+    }
+
+    /// Turns `expression` into the pattern it is written as, reporting what cannot be one.
+    pub inline fn toPattern(
+        self: *const Parser,
+        expression: ast.NodeIndex,
+        comptime context: PatternContext,
+    ) Error!void {
+        try grammar.expressionToPattern(self.inner, expression, context);
+    }
+
+    /// Whether `await` here is an operator, in an async function or a module's top level.
+    pub inline fn canAwait(self: *const Parser) bool {
+        return self.inner.context.await;
+    }
+
+    /// Ends the directive prologue of the function body being parsed, at the first thing in
+    /// it that is no statement.
+    pub inline fn endDirectivePrologue(self: *const Parser) void {
+        self.inner.context.directive_prologue = false;
     }
 
     /// Parses the `{ expression }` at the current `{` inside a tag.

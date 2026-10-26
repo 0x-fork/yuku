@@ -1141,7 +1141,7 @@ pub const Checker = struct {
         while (iter.next()) |i| {
             const data = ctx.tree.data(i);
             if (data.isIteration()) return true;
-            if (or_switch and data == .switch_statement) return true;
+            if (or_switch and data.isSwitch()) return true;
             if (isFunctionBoundary(data)) return false;
         }
         return false;
